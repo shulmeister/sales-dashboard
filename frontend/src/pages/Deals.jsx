@@ -28,44 +28,11 @@ const Deals = () => {
     { id: 3, name: 'Closed/Won', color: '#22c55e' },
   ]);
 
-  const [deals, setDeals] = useState([
-    {
-      id: 1,
-      stage_id: 1,
-      name: 'John Smith',
-      contact_info: 'john@example.com',
-      source: 'Website',
-      payor_source: 'Medicare',
-      expected_revenue: 5000,
-      priority: 'high',
-      notes: 'Interested in home care services',
-    },
-    {
-      id: 2,
-      stage_id: 1,
-      name: 'Mary Johnson',
-      contact_info: '(555) 123-4567',
-      source: 'Referral',
-      payor_source: 'Private Pay',
-      expected_revenue: 3500,
-      priority: 'medium',
-      notes: 'Needs evening care',
-    },
-    {
-      id: 3,
-      stage_id: 2,
-      name: 'Robert Davis',
-      contact_info: 'robert.d@email.com',
-      source: 'Social Media',
-      payor_source: 'Medicaid',
-      expected_revenue: 4200,
-      priority: 'high',
-      notes: 'Assessment scheduled for next week',
-    },
-  ]);
-
+  const [deals, setDeals] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [openModal, setOpenModal] = useState(false);
-  const [newDeal, setNewDeal] = useState({
+  const [editingDeal, setEditingDeal] = useState(null);
+  const [formData, setFormData] = useState({
     name: '',
     contact_info: '',
     source: '',
@@ -75,6 +42,25 @@ const Deals = () => {
     notes: '',
     stage_id: 1,
   });
+
+  // Fetch deals from API
+  useEffect(() => {
+    fetchDeals();
+  }, []);
+
+  const fetchDeals = async () => {
+    try {
+      const response = await fetch('/api/pipeline/leads', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setDeals(data);
+      }
+    } catch (error) {
+      console.error('Error fetching deals:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getDealsByStage = (stageId) => {
     return deals.filter(deal => deal.stage_id === stageId);
@@ -89,26 +75,86 @@ const Deals = () => {
     }
   };
 
-  const handleAddDeal = () => {
-    const dealToAdd = {
-      ...newDeal,
-      id: Math.max(...deals.map(d => d.id), 0) + 1,
-      expected_revenue: parseFloat(newDeal.expected_revenue) || 0,
-    };
-    
-    setDeals([...deals, dealToAdd]);
-    setOpenModal(false);
-    setNewDeal({
-      name: '',
-      contact_info: '',
-      source: '',
-      payor_source: '',
-      expected_revenue: '',
-      priority: 'medium',
-      notes: '',
-      stage_id: 1,
-    });
+  const handleOpenModal = (deal = null) => {
+    if (deal) {
+      setEditingDeal(deal);
+      setFormData({
+        name: deal.name || '',
+        contact_info: deal.contact_info || '',
+        source: deal.source || '',
+        payor_source: deal.payor_source || '',
+        expected_revenue: deal.expected_revenue || '',
+        priority: deal.priority || 'medium',
+        notes: deal.notes || '',
+        stage_id: deal.stage_id || 1,
+      });
+    } else {
+      setEditingDeal(null);
+      setFormData({
+        name: '',
+        contact_info: '',
+        source: '',
+        payor_source: '',
+        expected_revenue: '',
+        priority: 'medium',
+        notes: '',
+        stage_id: 1,
+      });
+    }
+    setOpenModal(true);
   };
+
+  const handleSaveDeal = async () => {
+    try {
+      const url = editingDeal 
+        ? `/api/pipeline/leads/${editingDeal.id}`
+        : '/api/pipeline/leads';
+      
+      const method = editingDeal ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...formData,
+          expected_revenue: parseFloat(formData.expected_revenue) || 0,
+        }),
+      });
+
+      if (response.ok) {
+        fetchDeals(); // Refresh the list
+        setOpenModal(false);
+      }
+    } catch (error) {
+      console.error('Error saving deal:', error);
+    }
+  };
+
+  const handleDeleteDeal = async (dealId) => {
+    if (!confirm('Are you sure you want to delete this deal?')) return;
+    
+    try {
+      const response = await fetch(`/api/pipeline/leads/${dealId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        fetchDeals(); // Refresh the list
+      }
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Typography sx={{ color: '#f1f5f9' }}>Loading deals...</Typography>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -119,7 +165,7 @@ const Deals = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => setOpenModal(true)}
+          onClick={() => handleOpenModal()}
           sx={{
             backgroundColor: '#3b82f6',
             '&:hover': { backgroundColor: '#2563eb' },
@@ -152,10 +198,7 @@ const Deals = () => {
                 pb={2}
                 borderBottom="1px solid #334155"
               >
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: 600, color: '#f1f5f9' }}
-                >
+                <Typography variant="h6" sx={{ fontWeight: 600, color: '#f1f5f9' }}>
                   {stage.name}
                 </Typography>
                 <Chip
@@ -187,10 +230,7 @@ const Deals = () => {
                   >
                     <CardContent>
                       <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
-                        <Typography
-                          variant="h6"
-                          sx={{ fontWeight: 600, color: '#f1f5f9', fontSize: '1rem' }}
-                        >
+                        <Typography variant="h6" sx={{ fontWeight: 600, color: '#f1f5f9', fontSize: '1rem' }}>
                           {deal.name}
                         </Typography>
                         <Chip
@@ -233,20 +273,21 @@ const Deals = () => {
                       )}
 
                       <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Typography
-                          variant="h6"
-                          sx={{ fontWeight: 700, color: '#22c55e', fontSize: '1.1rem' }}
-                        >
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#22c55e', fontSize: '1.1rem' }}>
                           ${deal.expected_revenue?.toLocaleString() || 0}
                         </Typography>
                         <Box>
-                          <IconButton size="small" sx={{ color: '#94a3b8' }}>
+                          <IconButton 
+                            size="small" 
+                            sx={{ color: '#94a3b8' }}
+                            onClick={() => handleOpenModal(deal)}
+                          >
                             <EditIcon fontSize="small" />
                           </IconButton>
                           <IconButton 
                             size="small" 
                             sx={{ color: '#ef4444' }}
-                            onClick={() => setDeals(deals.filter(d => d.id !== deal.id))}
+                            onClick={() => handleDeleteDeal(deal.id)}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -261,7 +302,7 @@ const Deals = () => {
         ))}
       </Grid>
 
-      {/* Add Deal Modal */}
+      {/* Add/Edit Deal Modal */}
       <Dialog 
         open={openModal} 
         onClose={() => setOpenModal(false)}
@@ -276,7 +317,7 @@ const Deals = () => {
       >
         <DialogTitle sx={{ color: '#f1f5f9', borderBottom: '1px solid #334155' }}>
           <Box display="flex" justifyContent="space-between" alignItems="center">
-            Add New Deal
+            {editingDeal ? 'Edit Deal' : 'Add New Deal'}
             <IconButton onClick={() => setOpenModal(false)} sx={{ color: '#94a3b8' }}>
               <CloseIcon />
             </IconButton>
@@ -288,8 +329,8 @@ const Deals = () => {
               <TextField
                 fullWidth
                 label="Name"
-                value={newDeal.name}
-                onChange={(e) => setNewDeal({ ...newDeal, name: e.target.value })}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 sx={{ 
                   '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
                   '& .MuiInputLabel-root': { color: '#94a3b8' },
@@ -300,8 +341,8 @@ const Deals = () => {
               <TextField
                 fullWidth
                 label="Contact Info"
-                value={newDeal.contact_info}
-                onChange={(e) => setNewDeal({ ...newDeal, contact_info: e.target.value })}
+                value={formData.contact_info}
+                onChange={(e) => setFormData({ ...formData, contact_info: e.target.value })}
                 sx={{ 
                   '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
                   '& .MuiInputLabel-root': { color: '#94a3b8' },
@@ -312,8 +353,8 @@ const Deals = () => {
               <TextField
                 fullWidth
                 label="Source"
-                value={newDeal.source}
-                onChange={(e) => setNewDeal({ ...newDeal, source: e.target.value })}
+                value={formData.source}
+                onChange={(e) => setFormData({ ...formData, source: e.target.value })}
                 sx={{ 
                   '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
                   '& .MuiInputLabel-root': { color: '#94a3b8' },
@@ -324,8 +365,8 @@ const Deals = () => {
               <TextField
                 fullWidth
                 label="Payor Source"
-                value={newDeal.payor_source}
-                onChange={(e) => setNewDeal({ ...newDeal, payor_source: e.target.value })}
+                value={formData.payor_source}
+                onChange={(e) => setFormData({ ...formData, payor_source: e.target.value })}
                 sx={{ 
                   '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
                   '& .MuiInputLabel-root': { color: '#94a3b8' },
@@ -337,8 +378,8 @@ const Deals = () => {
                 fullWidth
                 label="Expected Revenue"
                 type="number"
-                value={newDeal.expected_revenue}
-                onChange={(e) => setNewDeal({ ...newDeal, expected_revenue: e.target.value })}
+                value={formData.expected_revenue}
+                onChange={(e) => setFormData({ ...formData, expected_revenue: e.target.value })}
                 sx={{ 
                   '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
                   '& .MuiInputLabel-root': { color: '#94a3b8' },
@@ -350,8 +391,8 @@ const Deals = () => {
                 fullWidth
                 select
                 label="Priority"
-                value={newDeal.priority}
-                onChange={(e) => setNewDeal({ ...newDeal, priority: e.target.value })}
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                 sx={{ 
                   '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
                   '& .MuiInputLabel-root': { color: '#94a3b8' },
@@ -365,11 +406,28 @@ const Deals = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
+                select
+                label="Stage"
+                value={formData.stage_id}
+                onChange={(e) => setFormData({ ...formData, stage_id: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              >
+                {stages.map(stage => (
+                  <MenuItem key={stage.id} value={stage.id}>{stage.name}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
                 multiline
                 rows={3}
                 label="Notes"
-                value={newDeal.notes}
-                onChange={(e) => setNewDeal({ ...newDeal, notes: e.target.value })}
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 sx={{ 
                   '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
                   '& .MuiInputLabel-root': { color: '#94a3b8' },
@@ -383,15 +441,15 @@ const Deals = () => {
             Cancel
           </Button>
           <Button 
-            onClick={handleAddDeal}
+            onClick={handleSaveDeal}
             variant="contained"
-            disabled={!newDeal.name || !newDeal.contact_info}
+            disabled={!formData.name || !formData.contact_info}
             sx={{
               backgroundColor: '#3b82f6',
               '&:hover': { backgroundColor: '#2563eb' },
             }}
           >
-            Add Deal
+            {editingDeal ? 'Save Changes' : 'Add Deal'}
           </Button>
         </DialogActions>
       </Dialog>
