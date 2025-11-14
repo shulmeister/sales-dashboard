@@ -53,30 +53,33 @@ const Summary = () => {
 
   const fetchSummaryData = async () => {
     try {
-      // Fetch visits data to calculate summary stats
-      const visitsRes = await fetch('/api/visits', { credentials: 'include' });
+      // Fetch dashboard summary from Google Sheets (via AnalyticsEngine)
+      const summaryRes = await fetch('/api/dashboard/summary', { credentials: 'include' });
       
-      if (visitsRes.ok) {
-        const visits = await visitsRes.json();
+      if (summaryRes.ok) {
+        const summary = await summaryRes.json();
         
-        // Calculate stats from visits
-        const totalVisits = visits.length;
-        const totalCosts = visits.reduce((sum, v) => sum + (parseFloat(v.cost) || 0), 0);
-        const bonusesEarned = visits.reduce((sum, v) => sum + (parseFloat(v.bonus) || 0), 0);
-        const costPerVisit = totalVisits > 0 ? totalCosts / totalVisits : 0;
-        const totalHours = visits.reduce((sum, v) => sum + (parseFloat(v.hours) || 0), 0);
-
+        // Map the summary data to our stats
         setStats({
-          totalVisits: totalVisits.toLocaleString(),
-          totalCosts: `$${Math.round(totalCosts).toLocaleString()}`,
-          bonusesEarned: `$${Math.round(bonusesEarned).toLocaleString()}`,
-          costPerVisit: `$${Math.round(costPerVisit).toLocaleString()}`,
-          emailsSent: '-', // TODO: Add email tracking
-          totalHours: Math.round(totalHours).toLocaleString(),
+          totalVisits: (summary.total_visits || 0).toLocaleString(),
+          totalCosts: `$${Math.round(summary.total_costs || 0).toLocaleString()}`,
+          bonusesEarned: `$${Math.round(summary.total_bonuses || 0).toLocaleString()}`,
+          costPerVisit: `$${Math.round(summary.cost_per_visit || 0).toLocaleString()}`,
+          emailsSent: (summary.emails_sent_7_days || '-'),
+          totalHours: Math.round(summary.total_hours || 0).toLocaleString(),
         });
       }
     } catch (error) {
       console.error('Error fetching summary data:', error);
+      // Set error state with dashes
+      setStats({
+        totalVisits: '-',
+        totalCosts: '-',
+        bonusesEarned: '-',
+        costPerVisit: '-',
+        emailsSent: '-',
+        totalHours: '-',
+      });
     }
   };
 
