@@ -7,7 +7,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import BusinessIcon from '@mui/icons-material/Business';
 import TaskIcon from '@mui/icons-material/Task';
 import LocalCarWashIcon from '@mui/icons-material/LocalCarWash';
-import PhoneIcon from '@mui/icons-material/Phone';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 
@@ -25,8 +25,8 @@ const Layout = ({ children }) => {
   ];
 
   const trackerMenuItems = [
+    { path: '/summary', label: 'Summary', icon: <DashboardIcon /> },
     { path: '/visits', label: 'Visits', icon: <LocalCarWashIcon /> },
-    { path: '/calls', label: 'Calls', icon: <PhoneIcon /> },
     { path: '/uploads', label: 'Uploads', icon: <UploadFileIcon /> },
     { path: '/activity-logs', label: 'Activity Logs', icon: <ListAltIcon /> },
   ];

@@ -200,18 +200,21 @@ const Tasks = () => {
         </Button>
       </Box>
 
-      <Grid container spacing={1.5}>
+      <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
         {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-          <Grid item xs={12} md={4} key={status}>
-            <Box
-              sx={{
-                backgroundColor: '#1e293b',
-                borderRadius: 2,
-                border: '1px solid #334155',
-                p: 1.5,
-                minHeight: '500px',
-              }}
-            >
+          <Box
+            key={status}
+            sx={{
+              minWidth: 380,
+              maxWidth: 380,
+              backgroundColor: '#1e293b',
+              borderRadius: 2,
+              border: '1px solid #334155',
+              p: 1.5,
+              minHeight: '500px',
+              flexShrink: 0,
+            }}
+          >
               <Box
                 display="flex"
                 justifyContent="space-between"
@@ -308,10 +311,9 @@ const Tasks = () => {
                   </Card>
                 ))}
               </Box>
-            </Box>
-          </Grid>
+          </Box>
         ))}
-      </Grid>
+      </Box>
 
       {/* Add/Edit Task Modal */}
       <Dialog 

@@ -8,7 +8,7 @@ import Contacts from './pages/Contacts';
 import Companies from './pages/Companies';
 import Tasks from './pages/Tasks';
 import VisitsTracker from './pages/VisitsTracker';
-import Calls from './pages/Calls';
+import Summary from './pages/Summary';
 import Uploads from './pages/Uploads';
 import ActivityLogs from './pages/ActivityLogs';
 
@@ -53,8 +53,8 @@ function App() {
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/companies" element={<Companies />} />
             <Route path="/tasks" element={<Tasks />} />
+            <Route path="/summary" element={<Summary />} />
             <Route path="/visits" element={<VisitsTracker />} />
-            <Route path="/calls" element={<Calls />} />
             <Route path="/uploads" element={<Uploads />} />
             <Route path="/activity-logs" element={<ActivityLogs />} />
           </Routes>
