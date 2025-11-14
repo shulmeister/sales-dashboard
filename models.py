@@ -280,6 +280,7 @@ class PipelineStage(Base):
             "id": self.id,
             "name": self.name,
             "order_index": self.order_index,
+            "weighting": self.weighting,
             "color": self.color,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
