@@ -1117,6 +1117,47 @@
                 justify-content: flex-start;
             }
         }
+
+        /* Notes inline editing */
+        .notes-display {
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            color: #cbd5e1;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+        .notes-display:hover {
+            background: #334155;
+        }
+        .notes-display.editing {
+            display: none !important;
+        }
+        .notes-textarea {
+            display: none;
+            width: 100%;
+            min-height: 60px;
+            padding: 6px;
+            background: #1e293b;
+            border: 2px solid #3b82f6;
+            border-radius: 4px;
+            color: #f1f5f9;
+            font-family: inherit;
+            font-size: 0.75rem;
+            resize: vertical;
+        }
+        .notes-textarea.active {
+            display: block !important;
+        }
+        .notes-textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -2555,8 +2596,66 @@
                         <td>${visit.address || 'N/A'}</td>
                         <td>${visit.city || 'N/A'}</td>
                         <td>${visit.stop_number || 'N/A'}</td>
-                        <td>${visit.notes || 'N/A'}</td>
                     `;
+                    
+                    // Notes cell with inline editing
+                    const notesCell = document.createElement('td');
+                    notesCell.className = 'notes-col';
+                    
+                    const notes = visit.notes || '';
+                    const notesDisplay = document.createElement('div');
+                    notesDisplay.className = 'notes-display';
+                    notesDisplay.title = 'Click to edit notes';
+                    const maxPreviewLength = 40;
+                    if (notes && notes.length > maxPreviewLength) {
+                        notesDisplay.textContent = notes.substring(0, maxPreviewLength) + '...';
+                    } else {
+                        notesDisplay.textContent = notes || 'Click to add notes';
+                    }
+                    
+                    const notesTextarea = document.createElement('textarea');
+                    notesTextarea.className = 'notes-textarea';
+                    notesTextarea.value = notes;
+                    notesTextarea.placeholder = 'Enter notes here...';
+                    
+                    // Click display to edit
+                    notesDisplay.addEventListener('click', function() {
+                        notesDisplay.classList.add('editing');
+                        notesTextarea.classList.add('active');
+                        notesTextarea.focus();
+                    });
+                    
+                    // Save on blur (click away)
+                    notesTextarea.addEventListener('blur', function() {
+                        const newNotes = notesTextarea.value.trim();
+                        saveVisitNotes(visit.id, notesTextarea, function(success) {
+                            if (success) {
+                                // Update display
+                                if (newNotes && newNotes.length > maxPreviewLength) {
+                                    notesDisplay.textContent = newNotes.substring(0, maxPreviewLength) + '...';
+                                } else {
+                                    notesDisplay.textContent = newNotes || 'Click to add notes';
+                                }
+                            }
+                            notesDisplay.classList.remove('editing');
+                            notesTextarea.classList.remove('active');
+                        });
+                    });
+                    
+                    // Save on Ctrl/Cmd+Enter, Cancel on Escape
+                    notesTextarea.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape') {
+                            notesTextarea.value = notes;
+                            notesTextarea.blur();
+                        } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                            notesTextarea.blur();
+                        }
+                    });
+                    
+                    notesCell.appendChild(notesDisplay);
+                    notesCell.appendChild(notesTextarea);
+                    row.appendChild(notesCell);
+                    
                     tbody.appendChild(row);
                 });
                 console.log('Added', visits.length, 'rows to visits table');
@@ -2565,6 +2664,33 @@
                 const tbody = document.getElementById('visitsList');
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444;">Error loading visits</td></tr>';
             }
+        }
+
+        // Save visit notes
+        function saveVisitNotes(visitId, textarea, callback) {
+            const notes = textarea.value;
+            
+            fetch('/api/visits/' + visitId, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ notes: notes })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (callback) callback(true);
+                } else {
+                    alert('Error updating notes: ' + data.error);
+                    if (callback) callback(false);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating notes:', error);
+                alert('Error updating notes: ' + error.message);
+                if (callback) callback(false);
+            });
         }
 
         // Load sales data

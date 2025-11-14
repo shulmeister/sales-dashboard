@@ -783,6 +783,32 @@ async def get_visits(db: Session = Depends(get_db), current_user: Dict[str, Any]
         logger.error(f"Error getting visits: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/api/visits/{visit_id}")
+async def update_visit_notes(
+    visit_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Update visit notes"""
+    try:
+        data = await request.json()
+        notes = data.get('notes', '')
+        
+        visit = db.query(Visit).filter(Visit.id == visit_id).first()
+        if not visit:
+            return JSONResponse({"success": False, "error": "Visit not found"}, status_code=404)
+        
+        visit.notes = notes
+        db.commit()
+        
+        logger.info(f"Updated notes for visit {visit_id}")
+        return JSONResponse({"success": True})
+    except Exception as e:
+        logger.error(f"Error updating visit notes: {str(e)}")
+        db.rollback()
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
 @app.get("/api/sales-bonuses")
 async def get_sales_bonuses(db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
     """Get all sales bonuses"""
