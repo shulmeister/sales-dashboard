@@ -1570,6 +1570,463 @@ async def add_activity_log(request: Request, db: Session = Depends(get_db), curr
         logger.error(f"Error adding activity log: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error adding activity log: {str(e)}")
 
+# ============================================================================
+# Lead Pipeline API Endpoints (CRM Features)
+# ============================================================================
+
+@app.get("/api/pipeline/stages")
+async def get_pipeline_stages(db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get all pipeline stages"""
+    try:
+        from models import PipelineStage
+        stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
+        return JSONResponse([stage.to_dict() for stage in stages])
+    except Exception as e:
+        logger.error(f"Error fetching pipeline stages: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/pipeline/leads")
+async def get_leads(stage_id: Optional[int] = None, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get all leads, optionally filtered by stage"""
+    try:
+        from models import Lead
+        query = db.query(Lead)
+        if stage_id:
+            query = query.filter(Lead.stage_id == stage_id)
+        leads = query.order_by(Lead.order_index, Lead.created_at.desc()).all()
+        return JSONResponse([lead.to_dict() for lead in leads])
+    except Exception as e:
+        logger.error(f"Error fetching leads: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/pipeline/leads/{lead_id}")
+async def get_lead(lead_id: int, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get a single lead by ID"""
+    try:
+        from models import Lead
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return JSONResponse(lead.to_dict())
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching lead: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/pipeline/leads")
+async def create_lead(request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Create a new lead"""
+    try:
+        from models import Lead, LeadActivity
+        data = await request.json()
+        
+        # Get the highest order_index in the stage
+        stage_id = data.get("stage_id")
+        max_order = db.query(Lead).filter(Lead.stage_id == stage_id).count()
+        
+        lead = Lead(
+            name=data.get("name"),
+            contact_name=data.get("contact_name"),
+            email=data.get("email"),
+            phone=data.get("phone"),
+            address=data.get("address"),
+            city=data.get("city"),
+            source=data.get("source"),
+            payor_source=data.get("payor_source"),
+            expected_close_date=datetime.fromisoformat(data["expected_close_date"]) if data.get("expected_close_date") else None,
+            expected_revenue=data.get("expected_revenue"),
+            priority=data.get("priority", "medium"),
+            notes=data.get("notes"),
+            stage_id=stage_id,
+            order_index=max_order,
+            referral_source_id=data.get("referral_source_id")
+        )
+        
+        db.add(lead)
+        db.flush()  # Get the lead ID
+        
+        # Log activity
+        activity = LeadActivity(
+            lead_id=lead.id,
+            activity_type="created",
+            description=f"Lead created: {lead.name}",
+            user_email=current_user.get("email"),
+            new_value=lead.name
+        )
+        db.add(activity)
+        
+        db.commit()
+        db.refresh(lead)
+        
+        logger.info(f"Created lead: {lead.name}")
+        return JSONResponse({"success": True, "lead": lead.to_dict()})
+        
+    except Exception as e:
+        logger.error(f"Error creating lead: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/pipeline/leads/{lead_id}")
+async def update_lead(lead_id: int, request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Update a lead"""
+    try:
+        from models import Lead, LeadActivity
+        data = await request.json()
+        
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        # Track changes for activity log
+        changes = []
+        
+        # Update fields and track changes
+        fields_to_update = [
+            "name", "contact_name", "email", "phone", "address", "city",
+            "source", "payor_source", "priority", "notes", "referral_source_id",
+            "expected_revenue"
+        ]
+        
+        for field in fields_to_update:
+            if field in data:
+                old_value = getattr(lead, field)
+                new_value = data[field]
+                if old_value != new_value:
+                    setattr(lead, field, new_value)
+                    changes.append((field, old_value, new_value))
+        
+        # Handle expected_close_date separately (datetime field)
+        if "expected_close_date" in data and data["expected_close_date"]:
+            new_date = datetime.fromisoformat(data["expected_close_date"])
+            if lead.expected_close_date != new_date:
+                changes.append(("expected_close_date", lead.expected_close_date, new_date))
+                lead.expected_close_date = new_date
+        
+        # Log activities for each change
+        for field, old_val, new_val in changes:
+            activity = LeadActivity(
+                lead_id=lead.id,
+                activity_type=f"{field}_updated",
+                description=f"Updated {field.replace('_', ' ')}",
+                old_value=str(old_val) if old_val else None,
+                new_value=str(new_val) if new_val else None,
+                user_email=current_user.get("email")
+            )
+            db.add(activity)
+        
+        db.commit()
+        db.refresh(lead)
+        
+        logger.info(f"Updated lead {lead_id}: {len(changes)} changes")
+        return JSONResponse({"success": True, "lead": lead.to_dict()})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating lead: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/pipeline/leads/{lead_id}/move")
+async def move_lead(lead_id: int, request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Move a lead to a different stage or reorder within stage"""
+    try:
+        from models import Lead, LeadActivity, PipelineStage
+        data = await request.json()
+        
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        old_stage_id = lead.stage_id
+        new_stage_id = data.get("stage_id")
+        new_order_index = data.get("order_index", 0)
+        
+        # If moving to a different stage
+        if old_stage_id != new_stage_id:
+            old_stage = db.query(PipelineStage).filter(PipelineStage.id == old_stage_id).first()
+            new_stage = db.query(PipelineStage).filter(PipelineStage.id == new_stage_id).first()
+            
+            lead.stage_id = new_stage_id
+            lead.order_index = new_order_index
+            
+            # Log activity
+            activity = LeadActivity(
+                lead_id=lead.id,
+                activity_type="stage_changed",
+                description=f"Moved from {old_stage.name if old_stage else 'Unknown'} to {new_stage.name if new_stage else 'Unknown'}",
+                old_value=old_stage.name if old_stage else None,
+                new_value=new_stage.name if new_stage else None,
+                user_email=current_user.get("email")
+            )
+            db.add(activity)
+        else:
+            # Just reordering within the same stage
+            lead.order_index = new_order_index
+        
+        db.commit()
+        db.refresh(lead)
+        
+        logger.info(f"Moved lead {lead_id} to stage {new_stage_id}, order {new_order_index}")
+        return JSONResponse({"success": True, "lead": lead.to_dict()})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error moving lead: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/pipeline/leads/{lead_id}")
+async def delete_lead(lead_id: int, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Delete a lead"""
+    try:
+        from models import Lead
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        lead_name = lead.name
+        db.delete(lead)
+        db.commit()
+        
+        logger.info(f"Deleted lead: {lead_name}")
+        return JSONResponse({"success": True, "message": "Lead deleted successfully"})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting lead: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Referral Sources API
+@app.get("/api/pipeline/referral-sources")
+async def get_referral_sources(db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get all referral sources"""
+    try:
+        from models import ReferralSource
+        sources = db.query(ReferralSource).order_by(ReferralSource.created_at.desc()).all()
+        return JSONResponse([source.to_dict() for source in sources])
+    except Exception as e:
+        logger.error(f"Error fetching referral sources: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/pipeline/referral-sources")
+async def create_referral_source(request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Create a new referral source"""
+    try:
+        from models import ReferralSource
+        data = await request.json()
+        
+        source = ReferralSource(
+            name=data.get("name"),
+            organization=data.get("organization"),
+            contact_name=data.get("contact_name"),
+            email=data.get("email"),
+            phone=data.get("phone"),
+            address=data.get("address"),
+            source_type=data.get("source_type"),
+            status=data.get("status", "active"),
+            notes=data.get("notes")
+        )
+        
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+        
+        logger.info(f"Created referral source: {source.name}")
+        return JSONResponse({"success": True, "source": source.to_dict()})
+        
+    except Exception as e:
+        logger.error(f"Error creating referral source: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/pipeline/referral-sources/{source_id}")
+async def update_referral_source(source_id: int, request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Update a referral source"""
+    try:
+        from models import ReferralSource
+        data = await request.json()
+        
+        source = db.query(ReferralSource).filter(ReferralSource.id == source_id).first()
+        if not source:
+            raise HTTPException(status_code=404, detail="Referral source not found")
+        
+        # Update fields
+        for field in ["name", "organization", "contact_name", "email", "phone", "address", "source_type", "status", "notes"]:
+            if field in data:
+                setattr(source, field, data[field])
+        
+        db.commit()
+        db.refresh(source)
+        
+        logger.info(f"Updated referral source: {source.name}")
+        return JSONResponse({"success": True, "source": source.to_dict()})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating referral source: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/pipeline/referral-sources/{source_id}")
+async def delete_referral_source(source_id: int, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Delete a referral source"""
+    try:
+        from models import ReferralSource
+        source = db.query(ReferralSource).filter(ReferralSource.id == source_id).first()
+        if not source:
+            raise HTTPException(status_code=404, detail="Referral source not found")
+        
+        source_name = source.name
+        db.delete(source)
+        db.commit()
+        
+        logger.info(f"Deleted referral source: {source_name}")
+        return JSONResponse({"success": True, "message": "Referral source deleted successfully"})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting referral source: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Lead Tasks API
+@app.post("/api/pipeline/leads/{lead_id}/tasks")
+async def create_lead_task(lead_id: int, request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Create a task for a lead"""
+    try:
+        from models import Lead, LeadTask, LeadActivity
+        data = await request.json()
+        
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        task = LeadTask(
+            lead_id=lead_id,
+            title=data.get("title"),
+            description=data.get("description"),
+            due_date=datetime.fromisoformat(data["due_date"]) if data.get("due_date") else None,
+            status="pending"
+        )
+        
+        db.add(task)
+        db.flush()
+        
+        # Log activity
+        activity = LeadActivity(
+            lead_id=lead_id,
+            activity_type="task_created",
+            description=f"Task added: {task.title}",
+            user_email=current_user.get("email"),
+            new_value=task.title
+        )
+        db.add(activity)
+        
+        db.commit()
+        db.refresh(task)
+        
+        logger.info(f"Created task for lead {lead_id}: {task.title}")
+        return JSONResponse({"success": True, "task": task.to_dict()})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating task: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/pipeline/tasks/{task_id}")
+async def update_lead_task(task_id: int, request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Update a lead task"""
+    try:
+        from models import LeadTask, LeadActivity
+        data = await request.json()
+        
+        task = db.query(LeadTask).filter(LeadTask.id == task_id).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        old_status = task.status
+        
+        # Update fields
+        if "title" in data:
+            task.title = data["title"]
+        if "description" in data:
+            task.description = data["description"]
+        if "due_date" in data:
+            task.due_date = datetime.fromisoformat(data["due_date"]) if data["due_date"] else None
+        if "status" in data:
+            task.status = data["status"]
+            if data["status"] == "completed" and old_status != "completed":
+                task.completed_at = datetime.utcnow()
+                
+                # Log activity
+                activity = LeadActivity(
+                    lead_id=task.lead_id,
+                    activity_type="task_completed",
+                    description=f"Task completed: {task.title}",
+                    user_email=current_user.get("email")
+                )
+                db.add(activity)
+        
+        db.commit()
+        db.refresh(task)
+        
+        logger.info(f"Updated task {task_id}")
+        return JSONResponse({"success": True, "task": task.to_dict()})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating task: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/pipeline/tasks/{task_id}")
+async def delete_lead_task(task_id: int, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Delete a lead task"""
+    try:
+        from models import LeadTask
+        task = db.query(LeadTask).filter(LeadTask.id == task_id).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        task_title = task.title
+        db.delete(task)
+        db.commit()
+        
+        logger.info(f"Deleted task: {task_title}")
+        return JSONResponse({"success": True, "message": "Task deleted successfully"})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting task: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/pipeline/leads/{lead_id}/activities")
+async def get_lead_activities(lead_id: int, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get activity log for a lead"""
+    try:
+        from models import LeadActivity
+        activities = db.query(LeadActivity).filter(LeadActivity.lead_id == lead_id).order_by(LeadActivity.created_at.desc()).all()
+        return JSONResponse([activity.to_dict() for activity in activities])
+    except Exception as e:
+        logger.error(f"Error fetching lead activities: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# End of Lead Pipeline API Endpoints
+# ============================================================================
+
 @app.get("/favicon.ico")
 async def favicon():
     """Serve favicon"""

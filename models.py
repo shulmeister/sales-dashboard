@@ -255,3 +255,189 @@ class ActivityLog(Base):
             "owner": self.owner or 'Unknown',
             "manually_added": self.manually_added
         }
+
+# ============================================================================
+# Lead Pipeline Models (CRM Features)
+# ============================================================================
+
+class PipelineStage(Base):
+    """Pipeline stages for lead/deal management (Incoming, Ongoing, Closed/Won)"""
+    __tablename__ = "pipeline_stages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)  # e.g., "Incoming", "Ongoing", "Closed/Won"
+    order_index = Column(Integer, nullable=False, default=0)  # For display order
+    color = Column(String(50), nullable=True, default="#3b82f6")  # Hex color for UI
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship
+    leads = relationship("Lead", back_populates="stage")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "order_index": self.order_index,
+            "color": self.color,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+class ReferralSource(Base):
+    """Referral sources for tracking where leads come from"""
+    __tablename__ = "referral_sources"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)  # Person or organization name
+    organization = Column(String(255), nullable=True)  # Organization name (if person is from org)
+    contact_name = Column(String(255), nullable=True)  # Contact person name
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    address = Column(Text, nullable=True)
+    source_type = Column(String(100), nullable=True)  # e.g., "Healthcare Facility", "Individual", "Agency"
+    status = Column(String(50), nullable=False, default="active")  # "incoming", "ongoing", "active", "inactive"
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship
+    leads = relationship("Lead", back_populates="referral_source")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "organization": self.organization,
+            "contact_name": self.contact_name,
+            "email": self.email,
+            "phone": self.phone,
+            "address": self.address,
+            "source_type": self.source_type,
+            "status": self.status,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+class Lead(Base):
+    """Leads/Deals in the sales pipeline"""
+    __tablename__ = "leads"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)  # Lead/client name
+    contact_name = Column(String(255), nullable=True)  # Contact person (if different from lead name)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    address = Column(Text, nullable=True)
+    city = Column(String(255), nullable=True)
+    
+    # Sales-specific fields
+    source = Column(String(100), nullable=True)  # e.g., "Referral", "Direct", "Website", "Cold Call"
+    payor_source = Column(String(100), nullable=True)  # e.g., "Medicaid", "Private Pay", "Medicare", "Insurance"
+    expected_close_date = Column(DateTime, nullable=True)
+    expected_revenue = Column(Float, nullable=True)  # Expected monthly revenue
+    priority = Column(String(50), nullable=True, default="medium")  # "high", "medium", "low"
+    notes = Column(Text, nullable=True)
+    
+    # Pipeline management
+    stage_id = Column(Integer, ForeignKey("pipeline_stages.id"), nullable=False)
+    order_index = Column(Integer, nullable=False, default=0)  # For drag-and-drop ordering within stage
+    status = Column(String(50), nullable=False, default="active")  # "active", "closed_won", "closed_lost"
+    
+    # Referral source relationship
+    referral_source_id = Column(Integer, ForeignKey("referral_sources.id"), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    closed_at = Column(DateTime, nullable=True)  # When deal was closed (won or lost)
+    
+    # Relationships
+    stage = relationship("PipelineStage", back_populates="leads")
+    referral_source = relationship("ReferralSource", back_populates="leads")
+    tasks = relationship("LeadTask", back_populates="lead", cascade="all, delete-orphan")
+    activities = relationship("LeadActivity", back_populates="lead", cascade="all, delete-orphan")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "contact_name": self.contact_name,
+            "email": self.email,
+            "phone": self.phone,
+            "address": self.address,
+            "city": self.city,
+            "source": self.source,
+            "payor_source": self.payor_source,
+            "expected_close_date": self.expected_close_date.isoformat() if self.expected_close_date else None,
+            "expected_revenue": self.expected_revenue,
+            "priority": self.priority,
+            "notes": self.notes,
+            "stage_id": self.stage_id,
+            "stage_name": self.stage.name if self.stage else None,
+            "order_index": self.order_index,
+            "status": self.status,
+            "referral_source_id": self.referral_source_id,
+            "referral_source_name": self.referral_source.name if self.referral_source else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "closed_at": self.closed_at.isoformat() if self.closed_at else None,
+            "tasks": [task.to_dict() for task in self.tasks] if self.tasks else [],
+            "activities": [activity.to_dict() for activity in self.activities] if self.activities else []
+        }
+
+class LeadTask(Base):
+    """Tasks/updates for leads (e.g., Assessment Scheduled, Contract Signed)"""
+    __tablename__ = "lead_tasks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
+    title = Column(String(255), nullable=False)  # e.g., "Assessment Scheduled", "Contract Signed"
+    description = Column(Text, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    status = Column(String(50), nullable=False, default="pending")  # "pending", "completed", "cancelled"
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship
+    lead = relationship("Lead", back_populates="tasks")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "lead_id": self.lead_id,
+            "title": self.title,
+            "description": self.description,
+            "due_date": self.due_date.isoformat() if self.due_date else None,
+            "status": self.status,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+class LeadActivity(Base):
+    """Activity log for tracking all lead changes"""
+    __tablename__ = "lead_activities"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
+    activity_type = Column(String(100), nullable=False)  # e.g., "created", "stage_changed", "notes_updated"
+    description = Column(Text, nullable=False)  # Human-readable description
+    old_value = Column(Text, nullable=True)  # For change tracking
+    new_value = Column(Text, nullable=True)  # For change tracking
+    user_email = Column(String(255), nullable=True)  # Who made the change
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    lead = relationship("Lead", back_populates="activities")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "lead_id": self.lead_id,
+            "activity_type": self.activity_type,
+            "description": self.description,
+            "old_value": self.old_value,
+            "new_value": self.new_value,
+            "user_email": self.user_email,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
