@@ -1,57 +1,58 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
+import Deals from './pages/Deals';
+import Contacts from './pages/Contacts';
+import Companies from './pages/Companies';
+import Tasks from './pages/Tasks';
+
+// Dark theme matching your portal
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: {
+      main: '#3b82f6', // Blue
+    },
+    secondary: {
+      main: '#8b5cf6', // Purple
+    },
+    background: {
+      default: '#0f172a', // Dark background like portal
+      paper: '#1e293b',
+    },
+    text: {
+      primary: '#f1f5f9',
+      secondary: '#94a3b8',
+    },
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+  },
+  shape: {
+    borderRadius: 8,
+  },
+});
 
 function App() {
-  console.log('🚀 App is rendering!');
+  console.log('🚀 CRM App is rendering!');
   
   return (
-    <div style={{
-      backgroundColor: '#0f172a',
-      color: 'white',
-      minHeight: '100vh',
-      padding: '50px',
-      fontSize: '24px'
-    }}>
-      <h1 style={{ color: '#3b82f6', fontSize: '48px', marginBottom: '30px' }}>
-        🎉 HELLO FROM REACT!
-      </h1>
-      
-      <div style={{
-        backgroundColor: '#1e293b',
-        padding: '30px',
-        borderRadius: '10px',
-        marginBottom: '20px',
-        border: '2px solid #3b82f6'
-      }}>
-        <h2 style={{ color: '#22c55e' }}>Test Card 1</h2>
-        <p>If you can see this, React is rendering!</p>
-      </div>
-
-      <div style={{
-        backgroundColor: '#1e293b',
-        padding: '30px',
-        borderRadius: '10px',
-        border: '2px solid #8b5cf6'
-      }}>
-        <h2 style={{ color: '#f59e0b' }}>Test Card 2</h2>
-        <p>This is completely plain React - no React Admin!</p>
-      </div>
-
-      <button 
-        onClick={() => alert('Button works!')}
-        style={{
-          marginTop: '30px',
-          padding: '15px 30px',
-          fontSize: '18px',
-          backgroundColor: '#3b82f6',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer'
-        }}
-      >
-        Click Me!
-      </button>
-    </div>
+    <ThemeProvider theme={darkTheme}>
+      <CssBaseline />
+      <Router>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/deals" element={<Deals />} />
+            <Route path="/contacts" element={<Contacts />} />
+            <Route path="/companies" element={<Companies />} />
+            <Route path="/tasks" element={<Tasks />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </ThemeProvider>
   );
 }
 
