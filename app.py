@@ -229,52 +229,12 @@ async def read_root(request: Request, current_user: Optional[Dict[str, Any]] = D
     # Serve React app
     frontend_index = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
     if os.path.exists(frontend_index):
+        logger.info(f"✅ Serving React app from {frontend_index}")
         return FileResponse(frontend_index)
     
     # Fallback to old Jinja2 template if React build doesn't exist
-    logger.warning("React frontend not found, falling back to legacy template")
-    
-    # RingCentral configuration
-    from urllib.parse import urlencode
-    
-    ringcentral_config = {
-        "enabled": bool(RINGCENTRAL_EMBED_CLIENT_ID),
-        "client_id": RINGCENTRAL_EMBED_CLIENT_ID,
-        "app_server": RINGCENTRAL_EMBED_SERVER,
-        "app_url": RINGCENTRAL_EMBED_APP_URL,
-        "adapter_url": RINGCENTRAL_EMBED_ADAPTER_URL,
-        "default_tab": RINGCENTRAL_EMBED_DEFAULT_TAB,
-        "redirect_uri": RINGCENTRAL_EMBED_REDIRECT_URI,
-        "query_string": "",
-    }
-    
-    if ringcentral_config["enabled"]:
-        params = {
-            "clientId": RINGCENTRAL_EMBED_CLIENT_ID,
-            "appServer": RINGCENTRAL_EMBED_SERVER,
-        }
-        if RINGCENTRAL_EMBED_DEFAULT_TAB:
-            params["defaultTab"] = RINGCENTRAL_EMBED_DEFAULT_TAB
-        if RINGCENTRAL_EMBED_REDIRECT_URI:
-            params["redirectUri"] = RINGCENTRAL_EMBED_REDIRECT_URI
-        # Control which features are shown
-        params["enableGlip"] = "true"        # Enable Chat/Glip tab
-        params["disableGlip"] = "false"      # Make sure Glip is not disabled
-        params["disableConferences"] = "true"  # Disable video/meetings
-        params["theme"] = "dark"             # Set dark theme to match dashboard
-        ringcentral_config["query_string"] = urlencode(params)
-    
-    response = templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "user": current_user,
-        "ringcentral": ringcentral_config
-    })
-    # Add cache-busting headers and version parameter
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Cache-Version"] = "2.2"  # Version header to force refresh
-    return response
+    logger.warning(f"⚠️  React frontend not found at {frontend_index}, redirecting to /legacy")
+    return RedirectResponse(url="/legacy")
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), current_user: Dict[str, Any] = Depends(get_current_user)):
