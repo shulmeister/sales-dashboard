@@ -1158,6 +1158,408 @@
             border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
+
+        /* ==================================
+           Lead Pipeline / Kanban Board Styles
+           ================================== */
+        .pipeline-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .btn-primary, .btn-secondary {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #334155;
+            color: #f1f5f9;
+            border: 1px solid #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 24px;
+            min-height: 500px;
+        }
+
+        .kanban-loading {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+            font-size: 16px;
+        }
+
+        .kanban-column {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 16px;
+            min-height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .kanban-column-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #334155;
+        }
+
+        .kanban-column-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .kanban-column-count {
+            background: #334155;
+            color: #cbd5e1;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .kanban-column-cards {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+        }
+
+        .lead-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 14px;
+            cursor: grab;
+            transition: all 0.2s;
+        }
+
+        .lead-card:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+
+        .lead-card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .lead-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .lead-card-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #f1f5f9;
+            flex: 1;
+        }
+
+        .lead-card-priority {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .lead-card-priority.high {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+
+        .lead-card-priority.medium {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fcd34d;
+        }
+
+        .lead-card-priority.low {
+            background: rgba(34, 197, 94, 0.2);
+            color: #86efac;
+        }
+
+        .lead-card-info {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .lead-card-info-icon {
+            font-size: 12px;
+        }
+
+        .lead-card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .lead-card-tag {
+            background: #334155;
+            color: #cbd5e1;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .lead-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #334155;
+        }
+
+        .lead-card-revenue {
+            font-size: 14px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+
+        .lead-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .lead-card-action-btn {
+            background: #334155;
+            color: #cbd5e1;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lead-card-action-btn:hover {
+            background: #475569;
+            color: #f1f5f9;
+        }
+
+        .kanban-column-cards.drag-over {
+            background: rgba(59, 130, 246, 0.05);
+            border: 2px dashed #3b82f6;
+            border-radius: 8px;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #334155;
+            color: #f1f5f9;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #f1f5f9;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid #334155;
+        }
+
+        .btn-cancel {
+            background: #334155;
+            color: #cbd5e1;
+            padding: 10px 20px;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-cancel:hover {
+            background: #475569;
+        }
+
+        .btn-save {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-save:hover {
+            background: #2563eb;
+        }
+
+        .btn-delete {
+            background: #dc2626;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: auto;
+        }
+
+        .btn-delete:hover {
+            background: #b91c1c;
+        }
+
+        @media (max-width: 1200px) {
+            .kanban-board {
+                grid-template-columns: 1fr;
+            }
+            
+            .kanban-column {
+                min-height: 300px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1507,22 +1909,146 @@
             <!-- Lead Tracker Tab Content -->
             <div id="leadsTab" class="tab-content hidden">
                 <div class="dashboard-header">
-                    <h1 class="dashboard-title">Lead Tracker</h1>
-                    <p class="dashboard-subtitle">Manage leads and referral sources through the pipeline</p>
+                    <h1 class="dashboard-title">Lead Pipeline</h1>
+                    <p class="dashboard-subtitle">Manage leads through your sales pipeline</p>
+                    <div class="pipeline-actions">
+                        <button class="btn-primary" onclick="showAddLeadModal()">
+                            <span style="margin-right: 8px;">+</span> Add Lead
+                        </button>
+                        <button class="btn-secondary" onclick="showReferralSourcesModal()">
+                            📇 Manage Referral Sources
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Lead Tracker Content -->
-                <div style="margin-top: 24px;">
-                    <h2 style="font-size: 20px; color: #f8fafc; margin-bottom: 16px;">Coming Soon</h2>
-                    <p style="color: #94a3b8;">Lead tracking pipeline with drag-and-drop functionality will be added here.</p>
-                    <ul style="color: #94a3b8; margin-top: 16px; margin-left: 20px;">
-                        <li>Incoming Leads (Name, Contact Info, Source, Payor Source, Notes)</li>
-                        <li>Ongoing Leads (Task Updates: Assessment Scheduled, Contract Signed, Caregiver Assigned)</li>
-                        <li>Closed/Won</li>
-                        <li>Incoming Referral Sources (Name, Organization, Contact Info, Source, Notes)</li>
-                        <li>Ongoing Referral Sources (Task Updates: Follow Up Sent, Meeting Set)</li>
-                        <li>Activity logging for all changes</li>
-                    </ul>
+                <!-- Kanban Board -->
+                <div class="kanban-board" id="kanbanBoard">
+                    <div class="kanban-loading">Loading pipeline...</div>
+                </div>
+            </div>
+
+            <!-- Lead Modal -->
+            <div id="leadModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="leadModalTitle">Add Lead</h2>
+                        <button class="modal-close" onclick="closeLeadModal()">×</button>
+                    </div>
+                    <form id="leadForm" onsubmit="saveLead(event)">
+                        <input type="hidden" id="leadId">
+                        <input type="hidden" id="leadStageId">
+                        
+                        <div class="form-group">
+                            <label class="form-label">Lead Name *</label>
+                            <input type="text" id="leadName" class="form-input" required placeholder="Enter lead name">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Contact Person</label>
+                                <input type="text" id="leadContactName" class="form-input" placeholder="Contact name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" id="leadPhone" class="form-input" placeholder="Phone number">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="leadEmail" class="form-input" placeholder="Email address">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Address</label>
+                                <input type="text" id="leadAddress" class="form-input" placeholder="Street address">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">City</label>
+                                <input type="text" id="leadCity" class="form-input" placeholder="City">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Source</label>
+                                <select id="leadSource" class="form-select">
+                                    <option value="">Select source...</option>
+                                    <option value="Referral">Referral</option>
+                                    <option value="Direct">Direct</option>
+                                    <option value="Website">Website</option>
+                                    <option value="Cold Call">Cold Call</option>
+                                    <option value="Event">Event</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Payor Source</label>
+                                <select id="leadPayorSource" class="form-select">
+                                    <option value="">Select payor...</option>
+                                    <option value="Medicaid">Medicaid</option>
+                                    <option value="Medicare">Medicare</option>
+                                    <option value="Private Pay">Private Pay</option>
+                                    <option value="Insurance">Insurance</option>
+                                    <option value="VA">VA</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Expected Revenue (Monthly)</label>
+                                <input type="number" id="leadRevenue" class="form-input" placeholder="$0" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Expected Close Date</label>
+                                <input type="date" id="leadCloseDate" class="form-input">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Priority</label>
+                            <select id="leadPriority" class="form-select">
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Referral Source</label>
+                            <select id="leadReferralSourceId" class="form-select">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Notes</label>
+                            <textarea id="leadNotes" class="form-textarea" placeholder="Add any additional notes..."></textarea>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button type="button" id="deleteLeadBtn" class="btn-delete" onclick="deleteLead()" style="display: none;">Delete</button>
+                            <button type="button" class="btn-cancel" onclick="closeLeadModal()">Cancel</button>
+                            <button type="submit" class="btn-save">Save Lead</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Referral Sources Modal -->
+            <div id="referralSourcesModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Referral Sources</h2>
+                        <button class="modal-close" onclick="closeReferralSourcesModal()">×</button>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <button class="btn-primary" onclick="showAddReferralSourceForm()">+ Add Referral Source</button>
+                    </div>
+                    <div id="referralSourcesList"></div>
                 </div>
             </div>
 
@@ -3059,6 +3585,9 @@
                 case '#contacts':
                     showContactsTab();
                     break;
+                case '#leads':
+                    showLeadsTab();
+                    break;
                 case '#activity-logs':
                     showActivityLogsTab();
                     break;
@@ -3070,6 +3599,390 @@
                     break;
             }
         }
+
+        // ============================================================================
+        // Lead Pipeline / Kanban Board Functions
+        // ============================================================================
+        
+        let pipelineStages = [];
+        let pipelineLeads = [];
+        let referralSources = [];
+        let currentEditingLead = null;
+
+        async function loadPipeline() {
+            try {
+                // Load stages
+                const stagesResponse = await fetch('/api/pipeline/stages', { credentials: 'include' });
+                pipelineStages = await stagesResponse.json();
+
+                // Load leads
+                const leadsResponse = await fetch('/api/pipeline/leads', { credentials: 'include' });
+                pipelineLeads = await leadsResponse.json();
+
+                // Load referral sources for dropdown
+                const sourcesResponse = await fetch('/api/pipeline/referral-sources', { credentials: 'include' });
+                referralSources = await sourcesResponse.json();
+
+                // Populate referral source dropdown
+                populateReferralSourceDropdown();
+
+                // Render Kanban board
+                renderKanbanBoard();
+            } catch (error) {
+                console.error('Error loading pipeline:', error);
+                const boardEl = document.getElementById('kanbanBoard');
+                boardEl.innerHTML = '<div class="kanban-loading" style="color: #ef4444;">Error loading pipeline. Please try again.</div>';
+            }
+        }
+
+        function renderKanbanBoard() {
+            const boardEl = document.getElementById('kanbanBoard');
+            boardEl.innerHTML = '';
+
+            pipelineStages.forEach(stage => {
+                const stageLeads = pipelineLeads.filter(lead => lead.stage_id === stage.id);
+                
+                const columnEl = document.createElement('div');
+                columnEl.className = 'kanban-column';
+                columnEl.setAttribute('data-stage-id', stage.id);
+                
+                columnEl.innerHTML = `
+                    <div class="kanban-column-header">
+                        <div class="kanban-column-title">${stage.name}</div>
+                        <div class="kanban-column-count">${stageLeads.length}</div>
+                    </div>
+                    <div class="kanban-column-cards" data-stage-id="${stage.id}">
+                        ${stageLeads.length === 0 ? '<div style="color: #64748b; text-align: center; padding: 20px; font-size: 13px;">No leads yet</div>' : ''}
+                    </div>
+                `;
+                
+                boardEl.appendChild(columnEl);
+                
+                // Add lead cards
+                const cardsContainer = columnEl.querySelector('.kanban-column-cards');
+                stageLeads.forEach(lead => {
+                    const cardEl = createLeadCard(lead);
+                    cardsContainer.appendChild(cardEl);
+                });
+                
+                // Setup drop zone
+                setupDropZone(cardsContainer, stage.id);
+            });
+        }
+
+        function createLeadCard(lead) {
+            const cardEl = document.createElement('div');
+            cardEl.className = 'lead-card';
+            cardEl.setAttribute('draggable', 'true');
+            cardEl.setAttribute('data-lead-id', lead.id);
+            
+            const revenueFormatted = lead.expected_revenue 
+                ? `$${parseFloat(lead.expected_revenue).toLocaleString()}/mo` 
+                : '';
+            
+            cardEl.innerHTML = `
+                <div class="lead-card-header">
+                    <div class="lead-card-name">${lead.name}</div>
+                    ${lead.priority ? `<div class="lead-card-priority ${lead.priority}">${lead.priority}</div>` : ''}
+                </div>
+                ${lead.email ? `<div class="lead-card-info"><span class="lead-card-info-icon">✉️</span> ${lead.email}</div>` : ''}
+                ${lead.phone ? `<div class="lead-card-info"><span class="lead-card-info-icon">📞</span> ${lead.phone}</div>` : ''}
+                ${lead.city ? `<div class="lead-card-info"><span class="lead-card-info-icon">📍</span> ${lead.city}</div>` : ''}
+                <div class="lead-card-tags">
+                    ${lead.source ? `<span class="lead-card-tag">${lead.source}</span>` : ''}
+                    ${lead.payor_source ? `<span class="lead-card-tag">${lead.payor_source}</span>` : ''}
+                </div>
+                ${revenueFormatted || lead.expected_close_date ? `
+                    <div class="lead-card-footer">
+                        ${revenueFormatted ? `<div class="lead-card-revenue">${revenueFormatted}</div>` : '<div></div>'}
+                        <div class="lead-card-actions">
+                            <button class="lead-card-action-btn" onclick="editLead(${lead.id}); event.stopPropagation();">Edit</button>
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+            
+            // Drag events
+            cardEl.addEventListener('dragstart', (e) => {
+                cardEl.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', lead.id);
+            });
+            
+            cardEl.addEventListener('dragend', (e) => {
+                cardEl.classList.remove('dragging');
+            });
+            
+            // Click to edit
+            cardEl.addEventListener('click', () => {
+                editLead(lead.id);
+            });
+            
+            return cardEl;
+        }
+
+        function setupDropZone(container, stageId) {
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                container.classList.add('drag-over');
+            });
+            
+            container.addEventListener('dragleave', (e) => {
+                container.classList.remove('drag-over');
+            });
+            
+            container.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                container.classList.remove('drag-over');
+                
+                const leadId = e.dataTransfer.getData('text/plain');
+                const lead = pipelineLeads.find(l => l.id === parseInt(leadId));
+                
+                if (lead && lead.stage_id !== stageId) {
+                    await moveLead(lead.id, stageId);
+                }
+            });
+        }
+
+        async function moveLead(leadId, newStageId) {
+            try {
+                const response = await fetch(`/api/pipeline/leads/${leadId}/move`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ stage_id: newStageId, order_index: 0 })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    await loadPipeline(); // Reload to show updated board
+                } else {
+                    throw new Error(result.error || 'Failed to move lead');
+                }
+            } catch (error) {
+                console.error('Error moving lead:', error);
+                alert('Failed to move lead: ' + error.message);
+            }
+        }
+
+        function showAddLeadModal() {
+            currentEditingLead = null;
+            document.getElementById('leadModalTitle').textContent = 'Add Lead';
+            document.getElementById('leadForm').reset();
+            document.getElementById('leadId').value = '';
+            document.getElementById('leadStageId').value = pipelineStages[0]?.id || '';
+            document.getElementById('deleteLeadBtn').style.display = 'none';
+            document.getElementById('leadModal').classList.add('active');
+        }
+
+        function closeLeadModal() {
+            document.getElementById('leadModal').classList.remove('active');
+            currentEditingLead = null;
+        }
+
+        async function editLead(leadId) {
+            const lead = pipelineLeads.find(l => l.id === leadId);
+            if (!lead) return;
+            
+            currentEditingLead = lead;
+            document.getElementById('leadModalTitle').textContent = 'Edit Lead';
+            document.getElementById('leadId').value = lead.id;
+            document.getElementById('leadStageId').value = lead.stage_id;
+            document.getElementById('leadName').value = lead.name || '';
+            document.getElementById('leadContactName').value = lead.contact_name || '';
+            document.getElementById('leadPhone').value = lead.phone || '';
+            document.getElementById('leadEmail').value = lead.email || '';
+            document.getElementById('leadAddress').value = lead.address || '';
+            document.getElementById('leadCity').value = lead.city || '';
+            document.getElementById('leadSource').value = lead.source || '';
+            document.getElementById('leadPayorSource').value = lead.payor_source || '';
+            document.getElementById('leadRevenue').value = lead.expected_revenue || '';
+            document.getElementById('leadCloseDate').value = lead.expected_close_date ? lead.expected_close_date.split('T')[0] : '';
+            document.getElementById('leadPriority').value = lead.priority || 'medium';
+            document.getElementById('leadReferralSourceId').value = lead.referral_source_id || '';
+            document.getElementById('leadNotes').value = lead.notes || '';
+            document.getElementById('deleteLeadBtn').style.display = 'block';
+            document.getElementById('leadModal').classList.add('active');
+        }
+
+        async function saveLead(event) {
+            event.preventDefault();
+            
+            const leadId = document.getElementById('leadId').value;
+            const stageId = document.getElementById('leadStageId').value || pipelineStages[0]?.id;
+            
+            const leadData = {
+                name: document.getElementById('leadName').value,
+                contact_name: document.getElementById('leadContactName').value,
+                phone: document.getElementById('leadPhone').value,
+                email: document.getElementById('leadEmail').value,
+                address: document.getElementById('leadAddress').value,
+                city: document.getElementById('leadCity').value,
+                source: document.getElementById('leadSource').value,
+                payor_source: document.getElementById('leadPayorSource').value,
+                expected_revenue: parseFloat(document.getElementById('leadRevenue').value) || null,
+                expected_close_date: document.getElementById('leadCloseDate').value || null,
+                priority: document.getElementById('leadPriority').value,
+                referral_source_id: document.getElementById('leadReferralSourceId').value || null,
+                notes: document.getElementById('leadNotes').value,
+                stage_id: parseInt(stageId)
+            };
+            
+            try {
+                const url = leadId ? `/api/pipeline/leads/${leadId}` : '/api/pipeline/leads';
+                const method = leadId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(leadData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    closeLeadModal();
+                    await loadPipeline();
+                } else {
+                    throw new Error(result.error || 'Failed to save lead');
+                }
+            } catch (error) {
+                console.error('Error saving lead:', error);
+                alert('Failed to save lead: ' + error.message);
+            }
+        }
+
+        async function deleteLead() {
+            const leadId = document.getElementById('leadId').value;
+            if (!leadId) return;
+            
+            if (!confirm('Are you sure you want to delete this lead?')) return;
+            
+            try {
+                const response = await fetch(`/api/pipeline/leads/${leadId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    closeLeadModal();
+                    await loadPipeline();
+                } else {
+                    throw new Error(result.error || 'Failed to delete lead');
+                }
+            } catch (error) {
+                console.error('Error deleting lead:', error);
+                alert('Failed to delete lead: ' + error.message);
+            }
+        }
+
+        function populateReferralSourceDropdown() {
+            const dropdown = document.getElementById('leadReferralSourceId');
+            dropdown.innerHTML = '<option value="">None</option>' + 
+                referralSources.map(source => 
+                    `<option value="${source.id}">${source.name}${source.organization ? ` (${source.organization})` : ''}</option>`
+                ).join('');
+        }
+
+        function showReferralSourcesModal() {
+            loadReferralSourcesList();
+            document.getElementById('referralSourcesModal').classList.add('active');
+        }
+
+        function closeReferralSourcesModal() {
+            document.getElementById('referralSourcesModal').classList.remove('active');
+        }
+
+        async function loadReferralSourcesList() {
+            try {
+                const response = await fetch('/api/pipeline/referral-sources', { credentials: 'include' });
+                referralSources = await response.json();
+                
+                const listEl = document.getElementById('referralSourcesList');
+                if (referralSources.length === 0) {
+                    listEl.innerHTML = '<div style="color: #94a3b8; text-align: center; padding: 40px;">No referral sources yet. Add one to get started!</div>';
+                } else {
+                    listEl.innerHTML = referralSources.map(source => `
+                        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <div style="font-size: 16px; font-weight: 600; color: #f1f5f9; margin-bottom: 8px;">${source.name}</div>
+                                    ${source.organization ? `<div style="font-size: 14px; color: #94a3b8; margin-bottom: 4px;">${source.organization}</div>` : ''}
+                                    ${source.email ? `<div style="font-size: 13px; color: #94a3b8;">📧 ${source.email}</div>` : ''}
+                                    ${source.phone ? `<div style="font-size: 13px; color: #94a3b8;">📞 ${source.phone}</div>` : ''}
+                                </div>
+                                <button class="btn-delete" style="margin: 0;" onclick="deleteReferralSource(${source.id})">Delete</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading referral sources:', error);
+            }
+        }
+
+        function showAddReferralSourceForm() {
+            const name = prompt('Referral Source Name:');
+            if (!name) return;
+            
+            const organization = prompt('Organization (optional):') || '';
+            const email = prompt('Email (optional):') || '';
+            const phone = prompt('Phone (optional):') || '';
+            
+            addReferralSource({ name, organization, email, phone });
+        }
+
+        async function addReferralSource(data) {
+            try {
+                const response = await fetch('/api/pipeline/referral-sources', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    await loadReferralSourcesList();
+                    await loadPipeline(); // Refresh to update dropdown
+                } else {
+                    throw new Error(result.error || 'Failed to add referral source');
+                }
+            } catch (error) {
+                console.error('Error adding referral source:', error);
+                alert('Failed to add referral source: ' + error.message);
+            }
+        }
+
+        async function deleteReferralSource(sourceId) {
+            if (!confirm('Are you sure you want to delete this referral source?')) return;
+            
+            try {
+                const response = await fetch(`/api/pipeline/referral-sources/${sourceId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    await loadReferralSourcesList();
+                    await loadPipeline(); // Refresh to update dropdown
+                } else {
+                    throw new Error(result.error || 'Failed to delete referral source');
+                }
+            } catch (error) {
+                console.error('Error deleting referral source:', error);
+                alert('Failed to delete referral source: ' + error.message);
+            }
+        }
+
+        // Update showLeadsTab to load pipeline when tab is shown
+        const originalShowLeadsTab = window.showLeadsTab;
+        window.showLeadsTab = function() {
+            if (originalShowLeadsTab) originalShowLeadsTab();
+            loadPipeline();
+        };
     </script>
 </body>
 </html>
