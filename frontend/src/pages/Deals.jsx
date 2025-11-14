@@ -23,9 +23,10 @@ import CloseIcon from '@mui/icons-material/Close';
 
 const Deals = () => {
   const [stages, setStages] = useState([
-    { id: 1, name: 'Incoming Leads', color: '#3b82f6' },
-    { id: 2, name: 'Ongoing Leads', color: '#f59e0b' },
-    { id: 3, name: 'Closed/Won', color: '#22c55e' },
+    { id: 1, name: 'Incoming Leads', color: '#3b82f6', weighting: 0.10 },
+    { id: 2, name: 'Ongoing Leads', color: '#f59e0b', weighting: 0.40 },
+    { id: 3, name: 'Pending', color: '#8b5cf6', weighting: 0.80 },
+    { id: 4, name: 'Closed/Won', color: '#22c55e', weighting: 1.00 },
   ]);
 
   const [deals, setDeals] = useState([]);
@@ -64,6 +65,12 @@ const Deals = () => {
 
   const getDealsByStage = (stageId) => {
     return deals.filter(deal => deal.stage_id === stageId);
+  };
+
+  const getWeightedRevenue = (deal, stage) => {
+    const revenue = parseFloat(deal.expected_revenue) || 0;
+    const weighting = stage.weighting || 1;
+    return revenue * weighting;
   };
 
   const getPriorityColor = (priority) => {
@@ -150,16 +157,16 @@ const Deals = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Typography sx={{ color: '#f1f5f9' }}>Loading deals...</Typography>
+      <Container maxWidth="xl" sx={{ py: 1.5 }}>
+        <Typography sx={{ color: '#f1f5f9', fontSize: '0.8rem' }}>Loading deals...</Typography>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: '#f1f5f9' }}>
+    <Container maxWidth="xl" sx={{ py: 1.5 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '1.1rem' }}>
           Deals Pipeline
         </Typography>
         <Button
@@ -170,22 +177,25 @@ const Deals = () => {
             backgroundColor: '#3b82f6',
             '&:hover': { backgroundColor: '#2563eb' },
             textTransform: 'none',
+            fontSize: '0.85rem',
+            py: 0.75,
+            px: 2,
           }}
         >
           Add Deal
         </Button>
       </Box>
 
-      {/* Kanban Board */}
-      <Grid container spacing={3}>
+      {/* Kanban Board - 4 columns */}
+      <Grid container spacing={1.5}>
         {stages.map((stage) => (
-          <Grid item xs={12} md={4} key={stage.id}>
+          <Grid item xs={12} sm={6} md={3} key={stage.id}>
             <Box
               sx={{
                 backgroundColor: '#1e293b',
                 borderRadius: 2,
                 border: '1px solid #334155',
-                p: 2,
+                p: 1.5,
                 minHeight: '600px',
               }}
             >
@@ -194,13 +204,18 @@ const Deals = () => {
                 display="flex"
                 justifyContent="space-between"
                 alignItems="center"
-                mb={2}
-                pb={2}
+                mb={1.5}
+                pb={1}
                 borderBottom="1px solid #334155"
               >
-                <Typography variant="h6" sx={{ fontWeight: 600, color: '#f1f5f9' }}>
-                  {stage.name}
-                </Typography>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#f1f5f9', fontSize: '0.9rem' }}>
+                    {stage.name}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.65rem' }}>
+                    {stage.weighting * 100}% weighted
+                  </Typography>
+                </Box>
                 <Chip
                   label={getDealsByStage(stage.id).length}
                   size="small"
@@ -208,12 +223,14 @@ const Deals = () => {
                     backgroundColor: `${stage.color}20`,
                     color: stage.color,
                     fontWeight: 600,
+                    fontSize: '0.7rem',
+                    height: '18px',
                   }}
                 />
               </Box>
 
               {/* Deals */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 {getDealsByStage(stage.id).map((deal) => (
                   <Card
                     key={deal.id}
@@ -228,9 +245,9 @@ const Deals = () => {
                       },
                     }}
                   >
-                    <CardContent>
-                      <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
-                        <Typography variant="h6" sx={{ fontWeight: 600, color: '#f1f5f9', fontSize: '1rem' }}>
+                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="start" mb={1}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#f1f5f9', fontSize: '0.85rem' }}>
                           {deal.name}
                         </Typography>
                         <Chip
@@ -240,20 +257,20 @@ const Deals = () => {
                             backgroundColor: `${getPriorityColor(deal.priority)}20`,
                             color: getPriorityColor(deal.priority),
                             textTransform: 'capitalize',
-                            fontSize: '0.7rem',
-                            height: '20px',
+                            fontSize: '0.65rem',
+                            height: '18px',
                           }}
                         />
                       </Box>
 
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="body2" sx={{ color: '#94a3b8', mb: 0.5 }}>
+                      <Box sx={{ mb: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#94a3b8', mb: 0.25, fontSize: '0.75rem' }}>
                           📞 {deal.contact_info}
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#94a3b8', mb: 0.5 }}>
+                        <Typography variant="body2" sx={{ color: '#94a3b8', mb: 0.25, fontSize: '0.75rem' }}>
                           📍 {deal.source}
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                        <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: '0.75rem' }}>
                           💳 {deal.payor_source}
                         </Typography>
                       </Box>
@@ -263,9 +280,9 @@ const Deals = () => {
                           variant="body2"
                           sx={{
                             color: '#64748b',
-                            fontSize: '0.85rem',
+                            fontSize: '0.7rem',
                             fontStyle: 'italic',
-                            mb: 2,
+                            mb: 1,
                           }}
                         >
                           "{deal.notes}"
@@ -273,23 +290,30 @@ const Deals = () => {
                       )}
 
                       <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#22c55e', fontSize: '1.1rem' }}>
-                          ${deal.expected_revenue?.toLocaleString() || 0}
-                        </Typography>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#22c55e', fontSize: '0.95rem' }}>
+                            ${getWeightedRevenue(deal, stage).toLocaleString()}
+                          </Typography>
+                          {stage.weighting < 1 && (
+                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.65rem' }}>
+                              of ${deal.expected_revenue?.toLocaleString() || 0}
+                            </Typography>
+                          )}
+                        </Box>
                         <Box>
                           <IconButton 
                             size="small" 
-                            sx={{ color: '#94a3b8' }}
+                            sx={{ color: '#94a3b8', padding: '4px' }}
                             onClick={() => handleOpenModal(deal)}
                           >
-                            <EditIcon fontSize="small" />
+                            <EditIcon sx={{ fontSize: '1rem' }} />
                           </IconButton>
                           <IconButton 
                             size="small" 
-                            sx={{ color: '#ef4444' }}
+                            sx={{ color: '#ef4444', padding: '4px' }}
                             onClick={() => handleDeleteDeal(deal.id)}
                           >
-                            <DeleteIcon fontSize="small" />
+                            <DeleteIcon sx={{ fontSize: '1rem' }} />
                           </IconButton>
                         </Box>
                       </Box>
@@ -315,25 +339,28 @@ const Deals = () => {
           }
         }}
       >
-        <DialogTitle sx={{ color: '#f1f5f9', borderBottom: '1px solid #334155' }}>
+        <DialogTitle sx={{ color: '#f1f5f9', borderBottom: '1px solid #334155', py: 1.5 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center">
-            {editingDeal ? 'Edit Deal' : 'Add New Deal'}
-            <IconButton onClick={() => setOpenModal(false)} sx={{ color: '#94a3b8' }}>
-              <CloseIcon />
+            <Typography sx={{ fontSize: '1rem', fontWeight: 600 }}>
+              {editingDeal ? 'Edit Deal' : 'Add New Deal'}
+            </Typography>
+            <IconButton onClick={() => setOpenModal(false)} sx={{ color: '#94a3b8', padding: '4px' }}>
+              <CloseIcon sx={{ fontSize: '1.2rem' }} />
             </IconButton>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <Grid container spacing={2}>
+        <DialogContent sx={{ pt: 2, pb: 1 }}>
+          <Grid container spacing={1.5}>
             <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               />
             </Grid>
@@ -343,9 +370,10 @@ const Deals = () => {
                 label="Contact Info"
                 value={formData.contact_info}
                 onChange={(e) => setFormData({ ...formData, contact_info: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               />
             </Grid>
@@ -355,9 +383,10 @@ const Deals = () => {
                 label="Source"
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               />
             </Grid>
@@ -367,9 +396,10 @@ const Deals = () => {
                 label="Payor Source"
                 value={formData.payor_source}
                 onChange={(e) => setFormData({ ...formData, payor_source: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               />
             </Grid>
@@ -380,9 +410,10 @@ const Deals = () => {
                 type="number"
                 value={formData.expected_revenue}
                 onChange={(e) => setFormData({ ...formData, expected_revenue: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               />
             </Grid>
@@ -393,9 +424,10 @@ const Deals = () => {
                 label="Priority"
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               >
                 <MenuItem value="high">High</MenuItem>
@@ -410,13 +442,16 @@ const Deals = () => {
                 label="Stage"
                 value={formData.stage_id}
                 onChange={(e) => setFormData({ ...formData, stage_id: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               >
                 {stages.map(stage => (
-                  <MenuItem key={stage.id} value={stage.id}>{stage.name}</MenuItem>
+                  <MenuItem key={stage.id} value={stage.id}>
+                    {stage.name} ({stage.weighting * 100}% weighted)
+                  </MenuItem>
                 ))}
               </TextField>
             </Grid>
@@ -424,20 +459,24 @@ const Deals = () => {
               <TextField
                 fullWidth
                 multiline
-                rows={3}
+                rows={2}
                 label="Notes"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                size="small"
                 sx={{ 
-                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
-                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8', fontSize: '0.85rem' },
                 }}
               />
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ borderTop: '1px solid #334155', p: 2 }}>
-          <Button onClick={() => setOpenModal(false)} sx={{ color: '#94a3b8' }}>
+        <DialogActions sx={{ borderTop: '1px solid #334155', p: 1.5 }}>
+          <Button 
+            onClick={() => setOpenModal(false)} 
+            sx={{ color: '#94a3b8', fontSize: '0.85rem', py: 0.5 }}
+          >
             Cancel
           </Button>
           <Button 
@@ -447,6 +486,8 @@ const Deals = () => {
             sx={{
               backgroundColor: '#3b82f6',
               '&:hover': { backgroundColor: '#2563eb' },
+              fontSize: '0.85rem',
+              py: 0.5,
             }}
           >
             {editingDeal ? 'Save Changes' : 'Add Deal'}

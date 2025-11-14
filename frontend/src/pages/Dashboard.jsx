@@ -81,6 +81,20 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
 
+  // Stage weightings for probability-weighted forecasting
+  const stageWeightings = {
+    1: 0.10, // Incoming Leads
+    2: 0.40, // Ongoing Leads
+    3: 0.80, // Pending
+    4: 1.00, // Closed/Won
+  };
+
+  const getWeightedRevenue = (deal) => {
+    const revenue = parseFloat(deal.expected_revenue) || 0;
+    const weighting = stageWeightings[deal.stage_id] || 1;
+    return revenue * weighting;
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -95,7 +109,8 @@ const Dashboard = () => {
       const deals = dealsRes.ok ? await dealsRes.json() : [];
       const tasks = tasksRes.ok ? await tasksRes.json() : [];
 
-      const totalRevenue = deals.reduce((sum, deal) => sum + (parseFloat(deal.expected_revenue) || 0), 0);
+      // Calculate weighted revenue (probability-based forecast)
+      const totalRevenue = deals.reduce((sum, deal) => sum + getWeightedRevenue(deal), 0);
       const pendingTasks = tasks.filter(t => t.status === 'pending').length;
 
       setStats({
@@ -158,15 +173,17 @@ const Dashboard = () => {
 
   const revenueData = generateFutureMonths();
 
+  // Calculate WEIGHTED revenue by stage from REAL data
   const revenueByStage = stats.deals.reduce((acc, deal) => {
     const stageName = deal.stage_name || `Stage ${deal.stage_id}`;
-    acc[stageName] = (acc[stageName] || 0) + (parseFloat(deal.expected_revenue) || 0);
+    acc[stageName] = (acc[stageName] || 0) + getWeightedRevenue(deal);
     return acc;
   }, {});
 
-  // Hot Deals (high priority or high revenue)
+  // Hot Deals (high priority or high weighted revenue)
   const hotDeals = stats.deals
-    .filter(d => d.priority === 'high' || (d.expected_revenue && d.expected_revenue > 5000))
+    .filter(d => d.priority === 'high' || getWeightedRevenue(d) > 3000)
+    .sort((a, b) => getWeightedRevenue(b) - getWeightedRevenue(a))
     .slice(0, 4);
 
   // Upcoming Tasks (next 5)
@@ -206,11 +223,11 @@ const Dashboard = () => {
       <Grid container spacing={1.5} mb={1.5}>
         <Grid item xs={12} sm={6} md={3}>
           <KPICard
-            title="Total Revenue"
-            value={`$${stats.totalRevenue.toLocaleString()}`}
+            title="Weighted Revenue"
+            value={`$${Math.round(stats.totalRevenue).toLocaleString()}`}
             icon={<MonetizationOnIcon />}
             color="#22c55e"
-            subtitle="Expected Monthly"
+            subtitle="Probability Forecast"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -275,8 +292,13 @@ const Dashboard = () => {
                                 {deal.source}
                               </Typography>
                               <Typography sx={{ fontSize: '0.7rem', color: '#22c55e', fontWeight: 600 }}>
-                                ${deal.expected_revenue?.toLocaleString() || 0}
+                                ${Math.round(getWeightedRevenue(deal)).toLocaleString()}
                               </Typography>
+                              {stageWeightings[deal.stage_id] < 1 && (
+                                <Typography sx={{ fontSize: '0.6rem', color: '#64748b' }}>
+                                  {(stageWeightings[deal.stage_id] * 100).toFixed(0)}% of ${deal.expected_revenue?.toLocaleString() || 0}
+                                </Typography>
+                              )}
                             </Box>
                           }
                         />
@@ -400,7 +422,7 @@ const Dashboard = () => {
                           }
                           secondary={
                             <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
-                              {deal.source} • ${deal.expected_revenue?.toLocaleString() || 0}
+                              {deal.source} • ${Math.round(getWeightedRevenue(deal)).toLocaleString()} weighted
                             </Typography>
                           }
                         />
