@@ -9,10 +9,17 @@ import {
   Button,
   Chip,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
 
 const Deals = () => {
   const [stages, setStages] = useState([
@@ -57,26 +64,17 @@ const Deals = () => {
     },
   ]);
 
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Fetch deals from API
-    const fetchDeals = async () => {
-      try {
-        const response = await fetch('/api/pipeline/leads', { credentials: 'include' });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.length > 0) {
-            setDeals(data);
-          }
-        }
-      } catch (error) {
-        console.log('Using sample data for now');
-      }
-    };
-
-    fetchDeals();
-  }, []);
+  const [openModal, setOpenModal] = useState(false);
+  const [newDeal, setNewDeal] = useState({
+    name: '',
+    contact_info: '',
+    source: '',
+    payor_source: '',
+    expected_revenue: '',
+    priority: 'medium',
+    notes: '',
+    stage_id: 1,
+  });
 
   const getDealsByStage = (stageId) => {
     return deals.filter(deal => deal.stage_id === stageId);
@@ -91,6 +89,27 @@ const Deals = () => {
     }
   };
 
+  const handleAddDeal = () => {
+    const dealToAdd = {
+      ...newDeal,
+      id: Math.max(...deals.map(d => d.id), 0) + 1,
+      expected_revenue: parseFloat(newDeal.expected_revenue) || 0,
+    };
+    
+    setDeals([...deals, dealToAdd]);
+    setOpenModal(false);
+    setNewDeal({
+      name: '',
+      contact_info: '',
+      source: '',
+      payor_source: '',
+      expected_revenue: '',
+      priority: 'medium',
+      notes: '',
+      stage_id: 1,
+    });
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
@@ -100,6 +119,7 @@ const Deals = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
+          onClick={() => setOpenModal(true)}
           sx={{
             backgroundColor: '#3b82f6',
             '&:hover': { backgroundColor: '#2563eb' },
@@ -166,7 +186,6 @@ const Deals = () => {
                     }}
                   >
                     <CardContent>
-                      {/* Deal Header */}
                       <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
                         <Typography
                           variant="h6"
@@ -187,7 +206,6 @@ const Deals = () => {
                         />
                       </Box>
 
-                      {/* Deal Info */}
                       <Box sx={{ mb: 2 }}>
                         <Typography variant="body2" sx={{ color: '#94a3b8', mb: 0.5 }}>
                           📞 {deal.contact_info}
@@ -200,7 +218,6 @@ const Deals = () => {
                         </Typography>
                       </Box>
 
-                      {/* Notes */}
                       {deal.notes && (
                         <Typography
                           variant="body2"
@@ -215,7 +232,6 @@ const Deals = () => {
                         </Typography>
                       )}
 
-                      {/* Revenue & Actions */}
                       <Box display="flex" justifyContent="space-between" alignItems="center">
                         <Typography
                           variant="h6"
@@ -227,7 +243,11 @@ const Deals = () => {
                           <IconButton size="small" sx={{ color: '#94a3b8' }}>
                             <EditIcon fontSize="small" />
                           </IconButton>
-                          <IconButton size="small" sx={{ color: '#ef4444' }}>
+                          <IconButton 
+                            size="small" 
+                            sx={{ color: '#ef4444' }}
+                            onClick={() => setDeals(deals.filter(d => d.id !== deal.id))}
+                          >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Box>
@@ -240,9 +260,143 @@ const Deals = () => {
           </Grid>
         ))}
       </Grid>
+
+      {/* Add Deal Modal */}
+      <Dialog 
+        open={openModal} 
+        onClose={() => setOpenModal(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: '#1e293b',
+            border: '1px solid #334155',
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: '#f1f5f9', borderBottom: '1px solid #334155' }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            Add New Deal
+            <IconButton onClick={() => setOpenModal(false)} sx={{ color: '#94a3b8' }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Name"
+                value={newDeal.name}
+                onChange={(e) => setNewDeal({ ...newDeal, name: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Contact Info"
+                value={newDeal.contact_info}
+                onChange={(e) => setNewDeal({ ...newDeal, contact_info: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Source"
+                value={newDeal.source}
+                onChange={(e) => setNewDeal({ ...newDeal, source: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Payor Source"
+                value={newDeal.payor_source}
+                onChange={(e) => setNewDeal({ ...newDeal, payor_source: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Expected Revenue"
+                type="number"
+                value={newDeal.expected_revenue}
+                onChange={(e) => setNewDeal({ ...newDeal, expected_revenue: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                select
+                label="Priority"
+                value={newDeal.priority}
+                onChange={(e) => setNewDeal({ ...newDeal, priority: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              >
+                <MenuItem value="high">High</MenuItem>
+                <MenuItem value="medium">Medium</MenuItem>
+                <MenuItem value="low">Low</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Notes"
+                value={newDeal.notes}
+                onChange={(e) => setNewDeal({ ...newDeal, notes: e.target.value })}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { color: '#f1f5f9' },
+                  '& .MuiInputLabel-root': { color: '#94a3b8' },
+                }}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ borderTop: '1px solid #334155', p: 2 }}>
+          <Button onClick={() => setOpenModal(false)} sx={{ color: '#94a3b8' }}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAddDeal}
+            variant="contained"
+            disabled={!newDeal.name || !newDeal.contact_info}
+            sx={{
+              backgroundColor: '#3b82f6',
+              '&:hover': { backgroundColor: '#2563eb' },
+            }}
+          >
+            Add Deal
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
 
 export default Deals;
-
