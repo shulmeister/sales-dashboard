@@ -1876,6 +1876,17 @@ async def delete_referral_source(source_id: int, db: Session = Depends(get_db), 
         raise HTTPException(status_code=500, detail=str(e))
 
 # Lead Tasks API
+@app.get("/api/pipeline/tasks")
+async def get_all_tasks(db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get all tasks across all leads"""
+    try:
+        from models import LeadTask
+        tasks = db.query(LeadTask).order_by(LeadTask.created_at.desc()).all()
+        return JSONResponse([task.to_dict() for task in tasks])
+    except Exception as e:
+        logger.error(f"Error fetching tasks: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/pipeline/leads/{lead_id}/tasks")
 async def create_lead_task(lead_id: int, request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
     """Create a task for a lead"""
