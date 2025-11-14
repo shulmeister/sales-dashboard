@@ -261,12 +261,13 @@ class ActivityLog(Base):
 # ============================================================================
 
 class PipelineStage(Base):
-    """Pipeline stages for lead/deal management (Incoming, Ongoing, Closed/Won)"""
+    """Pipeline stages for lead/deal management (Incoming, Ongoing, Pending, Closed/Won)"""
     __tablename__ = "pipeline_stages"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False, unique=True)  # e.g., "Incoming", "Ongoing", "Closed/Won"
+    name = Column(String(100), nullable=False, unique=True)  # e.g., "Incoming", "Ongoing", "Pending", "Closed/Won"
     order_index = Column(Integer, nullable=False, default=0)  # For display order
+    weighting = Column(Float, nullable=False, default=1.0)  # Probability weighting for revenue forecasting (0.0-1.0)
     color = Column(String(50), nullable=True, default="#3b82f6")  # Hex color for UI
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -27,10 +27,10 @@ def init_pipeline_stages():
         if existing_stages == 0:
             # Create default stages with order and weighting
             stages = [
-                PipelineStage(name="Incoming Leads", stage_order=1, weighting=0.10),
-                PipelineStage(name="Ongoing Leads", stage_order=2, weighting=0.40),
-                PipelineStage(name="Pending", stage_order=3, weighting=0.80),
-                PipelineStage(name="Closed/Won", stage_order=4, weighting=1.00),
+                PipelineStage(name="Incoming Leads", order_index=1, weighting=0.10),
+                PipelineStage(name="Ongoing Leads", order_index=2, weighting=0.40),
+                PipelineStage(name="Pending", order_index=3, weighting=0.80),
+                PipelineStage(name="Closed/Won", order_index=4, weighting=1.00),
             ]
             
             session.add_all(stages)
@@ -38,7 +38,7 @@ def init_pipeline_stages():
             print("✅ Pipeline stages initialized successfully!")
             
             for stage in stages:
-                print(f"  - {stage.name} (Order: {stage.stage_order}, Weight: {stage.weighting * 100}%)")
+                print(f"  - {stage.name} (Order: {stage.order_index}, Weight: {stage.weighting * 100}%)")
         else:
             # Update existing stages to add Pending if missing
             incoming = session.query(PipelineStage).filter_by(name="Incoming Leads").first()
@@ -49,22 +49,22 @@ def init_pipeline_stages():
             # Set weightings
             if incoming:
                 incoming.weighting = 0.10
-                incoming.stage_order = 1
+                incoming.order_index = 1
             if ongoing:
                 ongoing.weighting = 0.40
-                ongoing.stage_order = 2
+                ongoing.order_index = 2
             if closed:
                 closed.weighting = 1.00
-                closed.stage_order = 4
+                closed.order_index = 4
             
             # Add Pending stage if it doesn't exist
             if not pending:
-                pending = PipelineStage(name="Pending", stage_order=3, weighting=0.80)
+                pending = PipelineStage(name="Pending", order_index=3, weighting=0.80)
                 session.add(pending)
                 print("✅ Added 'Pending' stage!")
             else:
                 pending.weighting = 0.80
-                pending.stage_order = 3
+                pending.order_index = 3
             
             session.commit()
             print("✅ Pipeline stages updated successfully!")
