@@ -131,6 +131,17 @@ app.add_middleware(
 # Mount static files and templates
 templates = Jinja2Templates(directory="templates")
 
+# Mount React frontend static assets
+frontend_dist = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+if os.path.exists(frontend_dist):
+    # Mount React assets (CSS, JS, etc.)
+    frontend_assets = os.path.join(frontend_dist, "assets")
+    if os.path.exists(frontend_assets):
+        app.mount("/assets", StaticFiles(directory=frontend_assets), name="assets")
+    logger.info(f"✅ React frontend mounted from {frontend_dist}")
+else:
+    logger.warning(f"⚠️  React frontend not found at {frontend_dist}")
+
 # Initialize components
 pdf_parser = PDFParser()
 business_card_scanner = BusinessCardScanner()
@@ -210,10 +221,18 @@ async def get_current_user_info(current_user: Dict[str, Any] = Depends(get_curre
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
-    """Serve the main dashboard page"""
+    """Serve the React CRM app"""
     if not current_user:
         # Redirect to login if not authenticated
         return RedirectResponse(url="/auth/login")
+    
+    # Serve React app
+    frontend_index = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
+    if os.path.exists(frontend_index):
+        return FileResponse(frontend_index)
+    
+    # Fallback to old Jinja2 template if React build doesn't exist
+    logger.warning("React frontend not found, falling back to legacy template")
     
     # RingCentral configuration
     from urllib.parse import urlencode
@@ -2036,6 +2055,46 @@ async def favicon():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "Colorado CareAssist Sales Dashboard"}
+
+# Legacy dashboard route (old Jinja2 template)
+@app.get("/legacy", response_class=HTMLResponse)
+async def legacy_dashboard(request: Request, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Serve the legacy Jinja2 dashboard for backward compatibility"""
+    from urllib.parse import urlencode
+    
+    ringcentral_config = {
+        'clientId': RINGCENTRAL_EMBED_CLIENT_ID or '',
+        'server': RINGCENTRAL_EMBED_SERVER,
+        'appUrl': RINGCENTRAL_EMBED_APP_URL,
+        'adapterUrl': RINGCENTRAL_EMBED_ADAPTER_URL,
+        'defaultTab': RINGCENTRAL_EMBED_DEFAULT_TAB,
+        'redirectUri': RINGCENTRAL_EMBED_REDIRECT_URI,
+    }
+    
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request, 
+        "user": current_user,
+        "ringcentral_config": ringcentral_config
+    })
+
+# SPA catch-all route - must be last!
+# This catches all routes and serves the React app for client-side routing
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def spa_catchall(request: Request, full_path: str, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    """Catch-all route for React Router (SPA)"""
+    # Don't catch API routes
+    if full_path.startswith("api/") or full_path.startswith("auth/"):
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    if not current_user:
+        return RedirectResponse(url="/auth/login")
+    
+    # Serve React app index.html for all non-API routes
+    frontend_index = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
+    if os.path.exists(frontend_index):
+        return FileResponse(frontend_index)
+    
+    raise HTTPException(status_code=404, detail="Frontend not found")
 
 if __name__ == "__main__":
     import uvicorn
