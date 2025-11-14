@@ -187,18 +187,21 @@ const Deals = () => {
       </Box>
 
       {/* Kanban Board - 4 columns */}
-      <Grid container spacing={1.5}>
+      <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
         {stages.map((stage) => (
-          <Grid item xs={12} sm={6} md={3} key={stage.id}>
-            <Box
-              sx={{
-                backgroundColor: '#1e293b',
-                borderRadius: 2,
-                border: '1px solid #334155',
-                p: 1.5,
-                minHeight: '600px',
-              }}
-            >
+          <Box
+            key={stage.id}
+            sx={{
+              minWidth: 380,
+              maxWidth: 380,
+              backgroundColor: '#1e293b',
+              borderRadius: 2,
+              border: '1px solid #334155',
+              p: 1.5,
+              minHeight: '600px',
+              flexShrink: 0,
+            }}
+          >
               {/* Column Header */}
               <Box
                 display="flex"
@@ -321,10 +324,9 @@ const Deals = () => {
                   </Card>
                 ))}
               </Box>
-            </Box>
-          </Grid>
+          </Box>
         ))}
-      </Grid>
+      </Box>
 
       {/* Add/Edit Deal Modal */}
       <Dialog 
