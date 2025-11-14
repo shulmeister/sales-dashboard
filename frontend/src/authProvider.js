@@ -1,51 +1,18 @@
-// Simple auth provider that uses your existing FastAPI session auth
+// Simple auth provider - assumes user is already authenticated by main portal
 const authProvider = {
-  login: () => {
-    // Already authenticated via portal, no login needed
-    return Promise.resolve();
-  },
+  login: () => Promise.resolve(),
   logout: () => {
-    // Redirect to portal logout
-    window.location.href = '/logout';
+    window.location.href = '/auth/logout';
     return Promise.resolve();
   },
-  checkAuth: () => {
-    // Check if user is authenticated via your FastAPI session
-    return fetch('/api/current-user', { credentials: 'include' })
-      .then(response => {
-        if (response.ok) {
-          return Promise.resolve();
-        }
-        return Promise.reject();
-      })
-      .catch(() => {
-        // Redirect to portal login
-        window.location.href = '/';
-        return Promise.reject();
-      });
-  },
-  checkError: (error) => {
-    const status = error.status;
-    if (status === 401 || status === 403) {
-      return Promise.reject();
-    }
-    return Promise.resolve();
-  },
-  getIdentity: () => {
-    return fetch('/api/current-user', { credentials: 'include' })
-      .then(response => response.json())
-      .then(user => ({
-        id: user.email,
-        fullName: user.name || user.email,
-        avatar: user.picture,
-      }))
-      .catch(() => ({
-        id: 'unknown',
-        fullName: 'User',
-      }));
-  },
-  getPermissions: () => Promise.resolve(''),
+  checkError: () => Promise.resolve(),
+  checkAuth: () => Promise.resolve(), // Always authenticated if you got here
+  getPermissions: () => Promise.resolve(),
+  getIdentity: () =>
+    Promise.resolve({
+      id: 'user',
+      fullName: 'Portal User',
+    }),
 };
 
 export default authProvider;
-
