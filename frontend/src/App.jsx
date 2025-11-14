@@ -9,21 +9,25 @@ import Dashboard from './dashboard/Dashboard';
 // Layout
 import Layout from './layout/Layout';
 
-// Placeholder components for resources
-const EmptyList = () => <div>Coming soon...</div>;
+// Super simple placeholder
+const EmptyList = () => (
+  <div style={{ padding: '20px', color: 'white', fontSize: '24px' }}>
+    Coming soon... (placeholder page)
+  </div>
+);
 
 // Dark theme matching your portal
 const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#3b82f6', // Blue matching your portal
+      main: '#3b82f6',
     },
     secondary: {
-      main: '#8b5cf6', // Purple accent
+      main: '#8b5cf6',
     },
     background: {
-      default: '#0f172a', // Dark background like portal
+      default: '#0f172a',
       paper: '#1e293b',
     },
     text: {
@@ -37,27 +41,11 @@ const darkTheme = createTheme({
   shape: {
     borderRadius: 8,
   },
-  components: {
-    MuiAppBar: {
-      styleOverrides: {
-        root: {
-          backgroundColor: '#1e293b',
-          borderBottom: '1px solid #334155',
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          backgroundColor: '#1e293b',
-          border: '1px solid #334155',
-        },
-      },
-    },
-  },
 });
 
 function App() {
+  console.log('🚀 App is rendering!');
+  
   return (
     <Admin
       dataProvider={dataProvider}
@@ -66,8 +54,8 @@ function App() {
       layout={Layout}
       theme={darkTheme}
       disableTelemetry
+      requireAuth={false}
     >
-      {/* Empty resources for now - just to make routes work */}
       <Resource name="deals" list={EmptyList} />
       <Resource name="contacts" list={EmptyList} />
       <Resource name="companies" list={EmptyList} />
