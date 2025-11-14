@@ -6,6 +6,13 @@ import {
   CardContent,
   Typography,
   Box,
+  Chip,
+  Avatar,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Divider,
 } from '@mui/material';
 import {
   BarChart,
@@ -23,6 +30,10 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PeopleIcon from '@mui/icons-material/People';
 import TaskIcon from '@mui/icons-material/Task';
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 // Ultra-Compact KPI Card
 const KPICard = ({ title, value, icon, color, subtitle }) => (
@@ -153,13 +164,45 @@ const Dashboard = () => {
     return acc;
   }, {});
 
+  // Hot Deals (high priority or high revenue)
+  const hotDeals = stats.deals
+    .filter(d => d.priority === 'high' || (d.expected_revenue && d.expected_revenue > 5000))
+    .slice(0, 4);
+
+  // Upcoming Tasks (next 5)
+  const upcomingTasks = stats.tasks
+    .filter(t => t.status !== 'completed')
+    .sort((a, b) => {
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return new Date(a.due_date) - new Date(b.due_date);
+    })
+    .slice(0, 5);
+
+  // Latest Activity (recent deals)
+  const latestActivity = stats.deals.slice(-5).reverse();
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return '#ef4444';
+      case 'medium': return '#f59e0b';
+      case 'low': return '#22c55e';
+      default: return '#94a3b8';
+    }
+  };
+
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 1.5, px: 2 }}>
       <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, color: '#f1f5f9', mb: 1.5, fontSize: '1.1rem' }}>
         Dashboard
       </Typography>
 
-      {/* KPI Cards - Ultra Compact */}
+      {/* KPI Cards */}
       <Grid container spacing={1.5} mb={1.5}>
         <Grid item xs={12} sm={6} md={3}>
           <KPICard
@@ -198,92 +241,245 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* Charts Row - Ultra Compact */}
-      <Grid container spacing={1.5} mb={1.5}>
-        <Grid item xs={12} md={8}>
-          <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}>
+      <Grid container spacing={1.5}>
+        {/* LEFT COLUMN - Hot Deals */}
+        <Grid item xs={12} md={3}>
+          <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155', mb: 1.5, height: 'calc(100% - 12px)' }}>
             <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-              <Typography variant="subtitle2" sx={{ color: '#f1f5f9', mb: 1, fontWeight: 600, fontSize: '0.85rem' }}>
-                Projected Revenue (Next 6 Months)
-              </Typography>
-              {revenueData.some(d => d.revenue > 0) ? (
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={revenueData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: '0.7rem' }} />
-                    <YAxis stroke="#94a3b8" style={{ fontSize: '0.7rem' }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #334155',
-                        borderRadius: '6px',
-                        color: '#f1f5f9',
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                    <Bar dataKey="revenue" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <Box display="flex" alignItems="center" mb={1}>
+                <LocalFireDepartmentIcon sx={{ color: '#ef4444', fontSize: '1.1rem', mr: 0.5 }} />
+                <Typography variant="subtitle2" sx={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.85rem' }}>
+                  Hot Deals
+                </Typography>
+              </Box>
+              {hotDeals.length > 0 ? (
+                <List sx={{ p: 0 }}>
+                  {hotDeals.map((deal, idx) => (
+                    <React.Fragment key={deal.id}>
+                      {idx > 0 && <Divider sx={{ borderColor: '#334155', my: 0.75 }} />}
+                      <ListItem sx={{ p: 0, mb: 0.75 }}>
+                        <ListItemAvatar sx={{ minWidth: 32 }}>
+                          <Avatar sx={{ width: 28, height: 28, fontSize: '0.7rem', bgcolor: getPriorityColor(deal.priority) }}>
+                            {getInitials(deal.name)}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#f1f5f9', mb: 0.25 }}>
+                              {deal.name}
+                            </Typography>
+                          }
+                          secondary={
+                            <Box>
+                              <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                                {deal.source}
+                              </Typography>
+                              <Typography sx={{ fontSize: '0.7rem', color: '#22c55e', fontWeight: 600 }}>
+                                ${deal.expected_revenue?.toLocaleString() || 0}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    </React.Fragment>
+                  ))}
+                </List>
               ) : (
-                <Box sx={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography sx={{ color: '#64748b', fontSize: '0.8rem' }}>
-                    Add deals to see revenue projections
-                  </Typography>
-                </Box>
+                <Typography sx={{ color: '#64748b', fontSize: '0.75rem', textAlign: 'center', py: 2 }}>
+                  No hot deals yet
+                </Typography>
               )}
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        {/* CENTER COLUMN - Charts */}
+        <Grid item xs={12} md={6}>
+          <Grid container spacing={1.5} mb={1.5}>
+            <Grid item xs={12} md={8}>
+              <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Typography variant="subtitle2" sx={{ color: '#f1f5f9', mb: 1, fontWeight: 600, fontSize: '0.85rem' }}>
+                    Projected Revenue (Next 6 Months)
+                  </Typography>
+                  {revenueData.some(d => d.revenue > 0) ? (
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={revenueData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: '0.7rem' }} />
+                        <YAxis stroke="#94a3b8" style={{ fontSize: '0.7rem' }} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#0f172a',
+                            border: '1px solid #334155',
+                            borderRadius: '6px',
+                            color: '#f1f5f9',
+                            fontSize: '0.75rem',
+                          }}
+                        />
+                        <Bar dataKey="revenue" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <Box sx={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        Add deals to see revenue projections
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Typography variant="subtitle2" sx={{ color: '#f1f5f9', mb: 1, fontWeight: 600, fontSize: '0.85rem' }}>
+                    By Priority
+                  </Typography>
+                  {priorityData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={140}>
+                      <PieChart>
+                        <Pie
+                          data={priorityData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={45}
+                          fill="#8884d8"
+                          dataKey="value"
+                          style={{ fontSize: '0.65rem' }}
+                        >
+                          {priorityData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#0f172a',
+                            border: '1px solid #334155',
+                            borderRadius: '6px',
+                            color: '#f1f5f9',
+                            fontSize: '0.75rem',
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <Box sx={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        No deals yet
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Latest Activity */}
           <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}>
             <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-              <Typography variant="subtitle2" sx={{ color: '#f1f5f9', mb: 1, fontWeight: 600, fontSize: '0.85rem' }}>
-                Deals by Priority
-              </Typography>
-              {priorityData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie
-                      data={priorityData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={50}
-                      fill="#8884d8"
-                      dataKey="value"
-                      style={{ fontSize: '0.7rem' }}
-                    >
-                      {priorityData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #334155',
-                        borderRadius: '6px',
-                        color: '#f1f5f9',
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+              <Box display="flex" alignItems="center" mb={1}>
+                <AccessTimeIcon sx={{ color: '#3b82f6', fontSize: '1.1rem', mr: 0.5 }} />
+                <Typography variant="subtitle2" sx={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.85rem' }}>
+                  Latest Activity
+                </Typography>
+              </Box>
+              {latestActivity.length > 0 ? (
+                <List sx={{ p: 0 }}>
+                  {latestActivity.map((deal, idx) => (
+                    <React.Fragment key={deal.id}>
+                      {idx > 0 && <Divider sx={{ borderColor: '#334155', my: 0.5 }} />}
+                      <ListItem sx={{ p: 0, py: 0.5 }}>
+                        <ListItemText
+                          primary={
+                            <Typography sx={{ fontSize: '0.75rem', color: '#f1f5f9' }}>
+                              New deal: <strong>{deal.name}</strong>
+                            </Typography>
+                          }
+                          secondary={
+                            <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                              {deal.source} • ${deal.expected_revenue?.toLocaleString() || 0}
+                            </Typography>
+                          }
+                        />
+                      </ListItem>
+                    </React.Fragment>
+                  ))}
+                </List>
               ) : (
-                <Box sx={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography sx={{ color: '#64748b', fontSize: '0.8rem' }}>
-                    No deals yet
-                  </Typography>
-                </Box>
+                <Typography sx={{ color: '#64748b', fontSize: '0.75rem', textAlign: 'center', py: 1 }}>
+                  No activity yet
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* RIGHT COLUMN - Upcoming Tasks */}
+        <Grid item xs={12} md={3}>
+          <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155', mb: 1.5, height: 'calc(100% - 12px)' }}>
+            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <CheckCircleOutlineIcon sx={{ color: '#22c55e', fontSize: '1.1rem', mr: 0.5 }} />
+                <Typography variant="subtitle2" sx={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.85rem' }}>
+                  Upcoming Tasks
+                </Typography>
+              </Box>
+              {upcomingTasks.length > 0 ? (
+                <List sx={{ p: 0 }}>
+                  {upcomingTasks.map((task, idx) => (
+                    <React.Fragment key={task.id}>
+                      {idx > 0 && <Divider sx={{ borderColor: '#334155', my: 0.75 }} />}
+                      <ListItem sx={{ p: 0, mb: 0.75, alignItems: 'flex-start' }}>
+                        <ListItemText
+                          primary={
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#f1f5f9', mb: 0.25 }}>
+                              {task.description}
+                            </Typography>
+                          }
+                          secondary={
+                            <Box>
+                              {task.due_date && (
+                                <Box display="flex" alignItems="center" mt={0.25}>
+                                  <CalendarTodayIcon sx={{ fontSize: '0.65rem', color: '#94a3b8', mr: 0.25 }} />
+                                  <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                                    {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </Typography>
+                                </Box>
+                              )}
+                              <Chip
+                                label={task.status}
+                                size="small"
+                                sx={{
+                                  backgroundColor: `${task.status === 'pending' ? '#3b82f6' : '#f59e0b'}20`,
+                                  color: task.status === 'pending' ? '#3b82f6' : '#f59e0b',
+                                  fontSize: '0.6rem',
+                                  height: '16px',
+                                  mt: 0.5,
+                                  textTransform: 'capitalize',
+                                }}
+                              />
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    </React.Fragment>
+                  ))}
+                </List>
+              ) : (
+                <Typography sx={{ color: '#64748b', fontSize: '0.75rem', textAlign: 'center', py: 2 }}>
+                  No upcoming tasks
+                </Typography>
               )}
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Pipeline Overview - Ultra Compact */}
-      <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}>
+      {/* Pipeline Overview - Bottom */}
+      <Card sx={{ backgroundColor: '#1e293b', border: '1px solid #334155', mt: 1.5 }}>
         <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
           <Typography variant="subtitle2" sx={{ color: '#f1f5f9', mb: 1, fontWeight: 600, fontSize: '0.85rem' }}>
             Pipeline Overview
