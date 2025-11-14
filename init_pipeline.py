@@ -28,11 +28,8 @@ def init_pipeline():
     try:
         logger.info("Starting pipeline initialization...")
         
-        # Create tables if they don't exist
-        logger.info("Creating pipeline tables...")
-        db_manager.create_tables()
-        
-        # Initialize default pipeline stages
+        # Tables are created automatically by DatabaseManager
+        # Just seed default pipeline stages
         db = next(get_db())
         
         # Check if stages already exist
