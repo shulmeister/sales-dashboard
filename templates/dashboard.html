@@ -1149,6 +1149,10 @@
                     <span class="nav-icon">📇</span>
                     Contacts
                 </a>
+                <a href="#leads" class="nav-item" onclick="showLeadsTab()">
+                    <span class="nav-icon">🎯</span>
+                    <span class="nav-text">Lead Tracker</span>
+                </a>
                 <a href="#activity-logs" class="nav-item" onclick="showActivityLogsTab()" id="nav-activity-logs">
                     <span class="nav-icon">📋</span>
                     <span class="nav-text">Activity Logs</span>
@@ -1456,6 +1460,28 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Lead Tracker Tab Content -->
+            <div id="leadsTab" class="tab-content hidden">
+                <div class="dashboard-header">
+                    <h1 class="dashboard-title">Lead Tracker</h1>
+                    <p class="dashboard-subtitle">Manage leads and referral sources through the pipeline</p>
+                </div>
+
+                <!-- Lead Tracker Content -->
+                <div style="margin-top: 24px;">
+                    <h2 style="font-size: 20px; color: #f8fafc; margin-bottom: 16px;">Coming Soon</h2>
+                    <p style="color: #94a3b8;">Lead tracking pipeline with drag-and-drop functionality will be added here.</p>
+                    <ul style="color: #94a3b8; margin-top: 16px; margin-left: 20px;">
+                        <li>Incoming Leads (Name, Contact Info, Source, Payor Source, Notes)</li>
+                        <li>Ongoing Leads (Task Updates: Assessment Scheduled, Contract Signed, Caregiver Assigned)</li>
+                        <li>Closed/Won</li>
+                        <li>Incoming Referral Sources (Name, Organization, Contact Info, Source, Notes)</li>
+                        <li>Ongoing Referral Sources (Task Updates: Follow Up Sent, Meeting Set)</li>
+                        <li>Activity logging for all changes</li>
+                    </ul>
                 </div>
             </div>
 
@@ -2439,6 +2465,17 @@
             console.log('contactsTab hidden class removed');
             updateActiveNav('contacts');
             loadContactsData();
+        }
+
+        function showLeadsTab() {
+            console.log('showLeadsTab called');
+            hideAllTabs();
+            const leadsTab = document.getElementById('leadsTab');
+            console.log('leadsTab element:', leadsTab);
+            leadsTab.classList.remove('hidden');
+            console.log('leadsTab hidden class removed');
+            updateActiveNav('leads');
+            // loadLeadsData(); // TODO: Implement when backend is ready
         }
 
         function hideAllTabs() {
