@@ -22,18 +22,11 @@ import { getActivityLog } from "../commons/activity";
 import { getCompanyAvatar } from "../commons/getCompanyAvatar";
 import { getContactAvatar } from "../commons/getContactAvatar";
 import { getIsInitialized } from "./authProvider";
-import { supabase } from "./supabase";
-
-if (import.meta.env.VITE_SUPABASE_URL === undefined) {
-  throw new Error("Please set the VITE_SUPABASE_URL environment variable");
-}
-if (import.meta.env.VITE_SUPABASE_ANON_KEY === undefined) {
-  throw new Error("Please set the VITE_SUPABASE_ANON_KEY environment variable");
-}
+import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase";
 
 const baseDataProvider = supabaseDataProvider({
-  instanceUrl: import.meta.env.VITE_SUPABASE_URL,
-  apiKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  instanceUrl: SUPABASE_URL,
+  apiKey: SUPABASE_ANON_KEY,
   supabaseClient: supabase,
   sortOrder: "asc,desc.nullslast" as any,
 });

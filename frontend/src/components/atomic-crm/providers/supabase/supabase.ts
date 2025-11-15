@@ -31,7 +31,7 @@ const resolveEnvVar = (
   return viteEnv[key] ?? globalEnv[key] ?? nodeEnv[key] ?? fallback;
 };
 
-const SUPABASE_URL = ensureEnv(
+export const SUPABASE_URL = ensureEnv(
   resolveEnvVar(
     "VITE_SUPABASE_URL",
     "https://rmxunxuxlmmhghiqtgnr.supabase.co",
@@ -39,7 +39,7 @@ const SUPABASE_URL = ensureEnv(
   "Please set the VITE_SUPABASE_URL environment variable",
 );
 
-const SUPABASE_ANON_KEY = ensureEnv(
+export const SUPABASE_ANON_KEY = ensureEnv(
   resolveEnvVar(
     "VITE_SUPABASE_ANON_KEY",
     "sb_publishable_HPYpMGh7AxD4YzMu4HRQFw_yV_Z_98N",
