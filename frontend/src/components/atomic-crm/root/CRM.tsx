@@ -6,11 +6,16 @@ import {
   type DataProvider,
 } from "ra-core";
 import { useEffect } from "react";
-import { Route } from "react-router";
+import { Navigate, Route } from "react-router";
 import { Admin } from "@/components/admin/admin";
 import { ForgotPasswordPage } from "@/components/supabase/forgot-password-page";
 import { SetPasswordPage } from "@/components/supabase/set-password-page";
 
+
+import { Summary as ActivitySummary } from "@/activity-tracker/Summary";
+import { Visits as ActivityVisits } from "@/activity-tracker/Visits";
+import { Uploads as ActivityUploads } from "@/activity-tracker/Uploads";
+import { ActivityLogs } from "@/activity-tracker/ActivityLogs";
 import companies from "../companies";
 import contacts from "../contacts";
 import { Dashboard } from "../dashboard/Dashboard";
@@ -151,6 +156,11 @@ export const CRM = ({
         </CustomRoutes>
 
         <CustomRoutes>
+          <Route path="/activity" element={<Navigate to="/activity/summary" replace />} />
+          <Route path="/activity/summary" element={<ActivitySummary />} />
+          <Route path="/activity/visits" element={<ActivityVisits />} />
+          <Route path="/activity/uploads" element={<ActivityUploads />} />
+          <Route path="/activity/logs" element={<ActivityLogs />} />
           <Route path={SettingsPage.path} element={<SettingsPage />} />
         </CustomRoutes>
         <Resource name="deals" {...deals} />
