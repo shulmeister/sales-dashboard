@@ -10,6 +10,7 @@ import { useUserMenu } from "@/hooks/user-menu-context";
 import { useConfigurationContext } from "../root/ConfigurationContext";
 
 const Header = () => {
+  const portalUrl = import.meta.env.VITE_PORTAL_URL ?? "https://app.coloradocareassist.com";
   const { darkModeLogo, lightModeLogo, title } = useConfigurationContext();
   const location = useLocation();
 
@@ -80,6 +81,9 @@ const Header = () => {
               </nav>
             </div>
             <div className="flex items-center">
+              <Button variant="outline" size="sm" className="mr-2" asChild>
+                <a href={portalUrl}>Back to Portal</a>
+              </Button>
               <ThemeModeToggle />
               <RefreshButton />
               <UserMenu>
