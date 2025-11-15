@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Settings, User } from "lucide-react";
 import { CanAccess } from "ra-core";
