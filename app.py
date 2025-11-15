@@ -2051,17 +2051,45 @@ async def legacy_dashboard(request: Request, current_user: Dict[str, Any] = Depe
 # SPA catch-all route - must be last!
 # This catches all routes and serves the React app for client-side routing
 @app.get("/{full_path:path}", response_class=HTMLResponse)
-async def spa_catchall(request: Request, full_path: str, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+async def spa_catchall(
+    request: Request,
+    full_path: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
     """Catch-all route for React Router (SPA)"""
     # Don't catch API routes
     if full_path.startswith("api/") or full_path.startswith("auth/"):
         raise HTTPException(status_code=404, detail="Not found")
-    
+
+    frontend_dist = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+
+    def _serve_static(relative_path: str):
+        candidate = os.path.abspath(os.path.join(frontend_dist, relative_path))
+        if not candidate.startswith(os.path.abspath(frontend_dist)):
+            raise HTTPException(status_code=404, detail="Asset not found")
+        if os.path.exists(candidate):
+            return FileResponse(candidate)
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    static_prefixes = ("assets/", "img/", "logos/")
+    static_files = {
+        "favicon.ico",
+        "manifest.json",
+        "logo192.png",
+        "logo512.png",
+        "robots.txt",
+        "auth-callback.html",
+        "stats.html",
+    }
+
+    if full_path.startswith(static_prefixes) or full_path in static_files:
+        return _serve_static(full_path)
+
     if not current_user:
         return RedirectResponse(url="/auth/login")
     
     # Serve React app index.html for all non-API routes
-    frontend_index = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
+    frontend_index = os.path.join(frontend_dist, "index.html")
     if os.path.exists(frontend_index):
         return FileResponse(frontend_index)
     
