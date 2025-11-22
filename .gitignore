@@ -1,0 +1,8 @@
+.heroku/
+.apt/
+node_modules/
+*.pyc
+__pycache__/
+.python-version
+frontend/.vite/
+
