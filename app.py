@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Depends, status
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Depends, status, Query
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -27,9 +27,15 @@ from mailchimp_service import MailchimpService
 from auth import oauth_manager, get_current_user, get_current_user_optional
 from google_drive_service import GoogleDriveService
 from dotenv import load_dotenv
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 # Load environment variables
 load_dotenv()
+
+# Portal SSO configuration (shared secret with main portal)
+PORTAL_SECRET = os.getenv("PORTAL_SECRET", "colorado-careassist-portal-2025")
+PORTAL_SSO_SERIALIZER = URLSafeTimedSerializer(PORTAL_SECRET)
+PORTAL_SSO_TOKEN_TTL = int(os.getenv("PORTAL_SSO_TOKEN_TTL", "300"))
 
 # Ring Central Embeddable configuration
 RINGCENTRAL_EMBED_CLIENT_ID = os.getenv("RINGCENTRAL_EMBED_CLIENT_ID")
@@ -204,6 +210,66 @@ async def logout(request: Request):
     
     response = JSONResponse({"success": True, "message": "Logged out successfully"})
     response.delete_cookie("session_token")
+    return response
+
+
+@app.get("/portal-auth")
+async def portal_auth(
+    portal_token: str = Query(..., min_length=10),
+    portal_user_email: Optional[str] = Query(None),
+    redirect_to: Optional[str] = Query(None)
+):
+    """
+    Accept SSO redirects from the main portal, validate the signed token,
+    and mint a local session cookie so users are not prompted to log in again.
+    """
+    try:
+        portal_payload = PORTAL_SSO_SERIALIZER.loads(
+            portal_token,
+            max_age=PORTAL_SSO_TOKEN_TTL
+        )
+    except SignatureExpired:
+        logger.warning("Portal SSO token expired")
+        raise HTTPException(status_code=400, detail="Portal token expired")
+    except BadSignature:
+        logger.warning("Portal SSO token invalid signature")
+        raise HTTPException(status_code=400, detail="Invalid portal token")
+
+    email = portal_user_email or portal_payload.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Portal token missing user email")
+
+    name = portal_payload.get("name") or portal_payload.get("display_name") or "Portal User"
+    domain = portal_payload.get("domain") or email.split("@")[-1]
+
+    session_payload = {
+        "email": email,
+        "name": name,
+        "domain": domain,
+        "picture": portal_payload.get("picture"),
+        "via_portal": True,
+        "portal_login": True,
+        "login_time": datetime.utcnow().isoformat()
+    }
+
+    session_token = oauth_manager.serializer.dumps(session_payload)
+
+    target_url = redirect_to or "/"
+    if not target_url.startswith("/"):
+        logger.debug("Portal redirect_to %s not relative; defaulting to /", target_url)
+        target_url = "/"
+
+    response = RedirectResponse(url=target_url, status_code=302)
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        max_age=3600 * 12,
+        httponly=True,
+        secure=True,
+        samesite="lax"
+    )
+
+    logger.info("Portal SSO login successful for %s", email)
     return response
 
 @app.get("/auth/me")
