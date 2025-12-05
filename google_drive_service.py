@@ -345,7 +345,6 @@ class GoogleDriveService:
                 )
                 filename = os.path.splitext(filename)[0] + '.pdf'
             else:
-            else:
                 # Download binary content
                 request = service_to_use.files().get_media(fileId=file_id)
                 
