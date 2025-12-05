@@ -48,6 +48,17 @@ export const authProvider: AuthProvider = {
     return result;
   },
   checkAuth: async (params) => {
+    const portalUser = await getPortalUser();
+    if (portalUser) {
+      cachedSale = cachedSale || {
+        id: portalUser.id,
+        first_name: portalUser.fullName,
+        last_name: "",
+        email: portalUser.email,
+        administrator: true,
+      };
+      return;
+    }
     // Users are on the set-password page, nothing to do
     if (
       window.location.pathname === "/set-password" ||
@@ -83,6 +94,9 @@ export const authProvider: AuthProvider = {
     return baseAuthProvider.checkAuth(params);
   },
   canAccess: async (params) => {
+    const portalUser = await getPortalUser();
+    if (portalUser) return true;
+
     const isInitialized = await getIsInitialized();
     if (!isInitialized) return false;
 
@@ -94,16 +108,27 @@ export const authProvider: AuthProvider = {
     const role = sale.administrator ? "admin" : "user";
     return canAccess(role, params);
   },
+  getIdentity: async () => {
+    const portalUser = await getPortalUser();
+    if (portalUser) return portalUser;
+    return baseAuthProvider.getIdentity();
+  },
 };
 
 let cachedSale: any;
 const getSaleFromCache = async () => {
   if (cachedSale != null) return cachedSale;
+  const sale = await getSaleFromSupabase();
+  if (sale) {
+    cachedSale = sale;
+  }
+  return sale;
+};
 
+const getSaleFromSupabase = async () => {
   const { data: dataSession, error: errorSession } =
     await supabase.auth.getSession();
 
-  // Shouldn't happen after login but just in case
   if (dataSession?.session?.user == null || errorSession) {
     return undefined;
   }
@@ -116,11 +141,28 @@ const getSaleFromCache = async () => {
     .match({ user_id: dataSession?.session?.user.id })
     .single();
 
-  // Shouldn't happen either as all users are sales but just in case
   if (dataSale == null || errorSale) {
     return undefined;
   }
 
-  cachedSale = dataSale;
   return dataSale;
+};
+
+const getPortalUser = async () => {
+  try {
+    const res = await fetch("/auth/me", { credentials: "include" });
+    if (!res.ok) return null;
+    const body = await res.json();
+    const user = body?.user;
+    if (!user?.email) return null;
+    return {
+      id: user.email,
+      fullName: user.name || user.email,
+      email: user.email,
+      avatar: user.picture,
+      portal: true,
+    };
+  } catch {
+    return null;
+  }
 };

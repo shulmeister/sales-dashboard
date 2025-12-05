@@ -75,6 +75,21 @@ export const DealsChart = memo(() => {
   }, [data]);
 
   if (isPending) return null; // FIXME return skeleton instead
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex flex-col">
+        <div className="flex items-center mb-4">
+          <div className="mr-3 flex">
+            <DollarSign className="text-muted-foreground w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-semibold text-muted-foreground">
+            Upcoming Deal Revenue
+          </h2>
+        </div>
+        <div className="text-muted-foreground text-sm">No deals yet.</div>
+      </div>
+    );
+  }
   const range = months.reduce(
     (acc, month) => {
       acc.min = Math.min(acc.min, month.lost);
