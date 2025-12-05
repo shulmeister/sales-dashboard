@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 const activityRoutes = [
   { to: "/activity/summary", label: "Summary" },
   { to: "/activity/visits", label: "Visits" },
+  { to: "/activity/expenses", label: "Expenses" },
   { to: "/activity/uploads", label: "Uploads" },
   { to: "/activity/logs", label: "Activity Logs" },
 ];

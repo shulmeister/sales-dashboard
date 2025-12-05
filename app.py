@@ -21,7 +21,7 @@ except ImportError:
 from parser import PDFParser
 from google_sheets import GoogleSheetsManager
 from database import get_db, db_manager
-from models import Visit, TimeEntry, Contact, ActivityNote, FinancialEntry, SalesBonus, DashboardSummary, EmailCount, ActivityLog, Deal
+from models import Visit, TimeEntry, Contact, ActivityNote, FinancialEntry, SalesBonus, DashboardSummary, EmailCount, ActivityLog, Deal, Expense
 from analytics import AnalyticsEngine
 from migrate_data import GoogleSheetsMigrator
 from business_card_scanner import BusinessCardScanner
@@ -53,6 +53,7 @@ def ensure_contact_schema():
         )
         row = conn.execute(query, {"column": column_name}).fetchone()
         return row is not None
+
 
     def add_column(conn, statement: str):
         if dialect == "sqlite":
@@ -181,6 +182,50 @@ def ensure_deal_schema():
 
 ensure_deal_schema()
 
+def ensure_financial_entry_schema():
+    """Add user_email column to financial_entries if missing"""
+    engine = db_manager.engine
+    if not engine:
+        return
+
+    # Check if table exists
+    with engine.connect() as conn:
+        dialect = engine.dialect.name
+        
+        # Check if financial_entries table exists
+        if dialect == "sqlite":
+            table_exists = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='financial_entries'")).fetchone()
+        else:
+            table_exists = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='financial_entries'")).fetchone()
+            
+        if not table_exists:
+            return
+
+        # Check for user_email column
+        def column_exists(column: str) -> bool:
+            if dialect == "sqlite":
+                rows = conn.execute(text("PRAGMA table_info(financial_entries)")).fetchall()
+                return any(row[1] == column for row in rows)
+            
+            row = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name='financial_entries' AND column_name=:column"
+                ),
+                {"column": column},
+            ).fetchone()
+            return row is not None
+
+        if not column_exists("user_email"):
+            logger.info("Adding user_email column to financial_entries table")
+            conn.execute(text("ALTER TABLE financial_entries ADD COLUMN user_email VARCHAR(255)"))
+            if dialect == "sqlite":
+                # conn.commit() - SQLAlchemy connection auto-commits DDL in some versions, but let's be safe
+                pass 
+            else:
+                conn.commit()
+
+ensure_financial_entry_schema()
+
 # Portal SSO configuration (shared secret with main portal)
 PORTAL_SECRET = os.getenv("PORTAL_SECRET", "colorado-careassist-portal-2025")
 PORTAL_SSO_SERIALIZER = URLSafeTimedSerializer(PORTAL_SECRET)
@@ -265,6 +310,42 @@ class SyncManager:
 
 # Initialize sync manager
 sync_manager = SyncManager()
+
+def ensure_financial_schema():
+    """Add user_email column to financial_entries if missing."""
+    engine = db_manager.engine
+    if not engine:
+        return
+
+    with engine.connect() as conn:
+        dialect = engine.dialect.name
+        
+        # Check if user_email column exists
+        exists = False
+        if dialect == "sqlite":
+            rows = conn.execute(text(f"PRAGMA table_info(financial_entries)")).fetchall()
+            exists = any(row[1] == "user_email" for row in rows)
+        else:
+            row = conn.execute(
+                text("SELECT column_name FROM information_schema.columns WHERE table_name='financial_entries' AND column_name='user_email'")
+            ).fetchone()
+            exists = row is not None
+            
+        if not exists:
+            logger.info("Adding user_email column to financial_entries table")
+            try:
+                conn.execute(text("ALTER TABLE financial_entries ADD COLUMN user_email VARCHAR(255)"))
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Could not add user_email column: {e}")
+
+# Initialize DB and ensure schema
+try:
+    ensure_contact_schema()
+    ensure_deal_schema()
+    ensure_financial_schema()
+except Exception as e:
+    logger.error(f"Schema initialization failed: {e}")
 
 app = FastAPI(title="Colorado CareAssist Sales Dashboard", version="2.0.0")
 
@@ -641,8 +722,14 @@ async def upload_from_url(
             print(f"DEBUG: download_file_from_url returned None for URL: {url}")
             raise HTTPException(status_code=400, detail="Failed to download file from URL. Ensure the link is accessible.")
             
-        content, filename = result
+        content, filename, metadata = result
         logger.info(f"Downloaded file: {filename} ({len(content)} bytes)")
+        
+        # Detect expenses based on filename or owner
+        owners = metadata.get('owners', [])
+        owner_email = owners[0].get('emailAddress', '') if owners else ''
+        is_expense_user = owner_email in ['jacob@coloradocareassist.com', 'maryssa@coloradocareassist.com']
+        is_expense_file = 'receipt' in filename.lower() or 'expense' in filename.lower()
         
         # Determine file type and process accordingly
         file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
@@ -675,8 +762,11 @@ async def upload_from_url(
                 })
             else:
                 visits = parse_result["visits"]
-                if not visits:
-                    raise HTTPException(status_code=400, detail="No visits found in PDF")
+                mileage = parse_result.get("mileage")
+                visit_date = parse_result.get("date")
+                
+                if not visits and not mileage:
+                    raise HTTPException(status_code=400, detail="No visits or mileage found in PDF")
                 
                 # Serialize datetime objects
                 serialized_visits = []
@@ -689,14 +779,94 @@ async def upload_from_url(
                             serialized_visit["visit_date"] = serialized_visit["visit_date"].date().isoformat()
                     serialized_visits.append(serialized_visit)
                 
+                # If we have mileage and a date, log it as a FinancialEntry
+                if mileage and visit_date and owner_email:
+                    try:
+                        # Convert visit_date to datetime if string
+                        if isinstance(visit_date, str):
+                            entry_date = datetime.fromisoformat(visit_date)
+                        else:
+                            entry_date = visit_date
+                            
+                        # Check if entry exists
+                        existing_entry = db.query(FinancialEntry).filter(
+                            func.date(FinancialEntry.date) == entry_date.date()
+                        ).first()
+                        
+                        if existing_entry:
+                            existing_entry.miles_driven = mileage
+                            existing_entry.mileage_cost = mileage * 0.70  # $0.70/mile
+                            existing_entry.user_email = owner_email  # Associate with user
+                            existing_entry.updated_at = datetime.utcnow()
+                        else:
+                            new_entry = FinancialEntry(
+                                date=entry_date,
+                                hours_worked=0, # Will be filled by time tracking or set to 0
+                                labor_cost=0,
+                                miles_driven=mileage,
+                                mileage_cost=mileage * 0.70,
+                                materials_cost=0,
+                                total_daily_cost=mileage * 0.70,
+                                user_email=owner_email
+                            )
+                            db.add(new_entry)
+                        db.commit()
+                        logger.info(f"Logged {mileage} miles for {entry_date.date()}")
+                    except Exception as e:
+                        logger.error(f"Error saving mileage: {e}")
+
                 return JSONResponse({
                     "success": True,
                     "filename": filename,
                     "type": "myway_route",
                     "visits": serialized_visits,
-                    "count": len(serialized_visits)
+                    "count": len(serialized_visits),
+                    "mileage": mileage
                 })
         else:
+            # Image handling: Expense Receipt OR Business Card
+            if is_expense_user or is_expense_file:
+                logger.info(f"Processing expense receipt from {owner_email}: {filename}")
+                
+                # Use simple OCR to get total
+                import re
+                scan_result = business_card_scanner.scan_image(content)
+                raw_text = scan_result.get("raw_text", "")
+                
+                # Extract total amount
+                amounts = re.findall(r'\$\s?(\d+\.\d{2})', raw_text)
+                if not amounts:
+                    amounts = re.findall(r'(\d+\.\d{2})', raw_text)
+                
+                # Simple heuristic: largest amount is likely the total
+                amount = 0.0
+                if amounts:
+                    try:
+                        amount = max([float(a) for a in amounts])
+                    except ValueError:
+                        pass
+                
+                # Save expense
+                new_expense = Expense(
+                    user_email=owner_email or "unknown@coloradocareassist.com",
+                    amount=amount,
+                    description=f"Receipt from {filename}",
+                    category="Uncategorized",
+                    receipt_url=url,
+                    status="pending",
+                    date=datetime.utcnow()
+                )
+                db.add(new_expense)
+                db.commit()
+                db.refresh(new_expense)
+                
+                return JSONResponse({
+                    "success": True,
+                    "filename": filename,
+                    "type": "expense_receipt",
+                    "expense": new_expense.to_dict()
+                })
+            
             # Assume image for business card
             logger.info(f"Processing business card image from URL: {filename}")
             scan_result = business_card_scanner.scan_image(content)
@@ -2218,6 +2388,174 @@ async def delete_activity_note(note_id: int, db: Session = Depends(get_db), curr
     except Exception as e:
         logger.error(f"Error deleting activity note: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error deleting activity note: {str(e)}")
+
+@app.get("/api/expenses")
+async def get_expenses(
+    db: Session = Depends(get_db), 
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    user_email: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Get expenses with optional filters"""
+    try:
+        query = db.query(Expense)
+        
+        if user_email:
+            query = query.filter(Expense.user_email == user_email)
+            
+        if start_date:
+            try:
+                start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                query = query.filter(Expense.date >= start)
+            except ValueError:
+                pass
+                
+        if end_date:
+            try:
+                end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                query = query.filter(Expense.date <= end)
+            except ValueError:
+                pass
+                
+        expenses = query.order_by(Expense.date.desc()).all()
+        return JSONResponse([e.to_dict() for e in expenses])
+    except Exception as e:
+        logger.error(f"Error fetching expenses: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/expenses/pay-period-summary")
+async def get_pay_period_summary(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get expense summary for Jacob and Maryssa for the current pay period"""
+    try:
+        # Pay period logic
+        # Start date: Dec 1, 2025 (Monday)
+        start_date = datetime(2025, 12, 1)
+        now = datetime.utcnow()
+        
+        # Calculate days since start
+        delta = now - start_date
+        days_since_start = delta.days
+        period_length = 14
+        
+        # Calculate current period index (0-based)
+        if days_since_start < 0:
+             period_index = 0 
+        else:
+             period_index = days_since_start // period_length
+             
+        current_period_start = start_date + timedelta(days=period_index * period_length)
+        current_period_end = current_period_start + timedelta(days=13, hours=23, minutes=59, seconds=59)
+        
+        # Users to track
+        users = ["jacob@coloradocareassist.com", "maryssa@coloradocareassist.com"]
+        
+        summary = {
+            "period": {
+                "start": current_period_start.isoformat(),
+                "end": current_period_end.isoformat(),
+                "index": period_index + 1
+            },
+            "users": {}
+        }
+        
+        for email in users:
+            # Get expenses
+            expenses = db.query(Expense).filter(
+                Expense.user_email == email,
+                Expense.date >= current_period_start,
+                Expense.date <= current_period_end
+            ).all()
+            
+            expense_total = sum(e.amount or 0 for e in expenses)
+            
+            # Get mileage from FinancialEntry
+            mileage_entries = db.query(FinancialEntry).filter(
+                FinancialEntry.user_email == email,
+                FinancialEntry.date >= current_period_start,
+                FinancialEntry.date <= current_period_end
+            ).all()
+            
+            total_miles = sum(e.miles_driven or 0 for e in mileage_entries)
+            mileage_total = sum(e.mileage_cost or 0 for e in mileage_entries)
+            
+            # Merge items for display
+            items = []
+            for e in expenses:
+                items.append({
+                    "type": "expense",
+                    "date": e.date.isoformat(),
+                    "description": e.description,
+                    "amount": e.amount,
+                    "status": e.status,
+                    "url": e.receipt_url
+                })
+            
+            for m in mileage_entries:
+                if m.miles_driven:
+                    items.append({
+                        "type": "mileage",
+                        "date": m.date.isoformat(),
+                        "description": f"Mileage: {m.miles_driven} miles",
+                        "amount": m.mileage_cost,
+                        "miles": m.miles_driven,
+                        "rate": 0.70
+                    })
+            
+            # Sort items by date desc
+            items.sort(key=lambda x: x["date"], reverse=True)
+            
+            summary["users"][email] = {
+                "total_miles": total_miles,
+                "mileage_amount": round(mileage_total, 2),
+                "expenses_amount": round(expense_total, 2),
+                "grand_total": round(mileage_total + expense_total, 2),
+                "items": items
+            }
+            
+        return JSONResponse(summary)
+        
+    except Exception as e:
+        logger.error(f"Error getting pay period summary: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/financials")
+async def get_financials(
+    db: Session = Depends(get_db), 
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    user_email: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Get financial entries (mileage) with optional filters"""
+    try:
+        query = db.query(FinancialEntry)
+        
+        if user_email:
+            query = query.filter(FinancialEntry.user_email == user_email)
+            
+        if start_date:
+            try:
+                start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                query = query.filter(FinancialEntry.date >= start)
+            except ValueError:
+                pass
+                
+        if end_date:
+            try:
+                end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                query = query.filter(FinancialEntry.date <= end)
+            except ValueError:
+                pass
+                
+        entries = query.order_by(FinancialEntry.date.desc()).all()
+        return JSONResponse([e.to_dict() for e in entries])
+    except Exception as e:
+        logger.error(f"Error fetching financials: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Google Drive Activity Logs API Endpoints
 @app.get("/api/activity-logs")

@@ -630,6 +630,7 @@ class PDFParser:
         try:
             visits = []
             pdf_date = None
+            total_mileage = None
             
             with pdfplumber.open(io.BytesIO(pdf_content)) as pdf:
                 page_texts: List[str] = []
@@ -646,6 +647,10 @@ class PDFParser:
                             full_text = "\n".join(page_texts[:3])  # Use first three pages
                             pdf_date = self._extract_date_from_text(full_text)
                 
+                # Combine all text to search for global stats like mileage
+                full_text = "\n".join(page_texts)
+                total_mileage = self._extract_mileage_from_text(full_text)
+                
                 # Extract visits from all pages
                 for page_num, text in enumerate(page_texts):
                     if text:
@@ -655,12 +660,14 @@ class PDFParser:
             # Clean and validate visits
             cleaned_visits = self._clean_visits(visits)
             
-            logger.info(f"Extracted {len(cleaned_visits)} visits from MyWay route PDF")
+            logger.info(f"Extracted {len(cleaned_visits)} visits from MyWay route PDF. Mileage: {total_mileage}")
             
             return {
                 "type": "myway_route",
                 "visits": cleaned_visits,
                 "count": len(cleaned_visits),
+                "mileage": total_mileage,
+                "date": pdf_date,
                 "success": True
             }
             
@@ -672,6 +679,26 @@ class PDFParser:
                 "error": str(e)
             }
     
+    def _extract_mileage_from_text(self, text: str) -> Optional[float]:
+        """Extract total mileage from text"""
+        # Patterns for mileage (e.g. "Total Miles: 45.2", "Mileage: 120")
+        mileage_patterns = [
+            r'(?:Total\s+)?Miles[:\s]+(\d+\.?\d*)',
+            r'Mileage[:\s]+(\d+\.?\d*)',
+            r'Distance[:\s]+(\d+\.?\d*)\s*mi',
+            r'(\d+\.?\d*)\s*miles\s+driven',
+            r'Total\s+Distance[:\s]+(\d+\.?\d*)'
+        ]
+        
+        for pattern in mileage_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                try:
+                    return float(match.group(1))
+                except ValueError:
+                    continue
+        return None
+
     def _extract_visits_from_text(self, text: str, page_num: int, pdf_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """Extract visit information from page text"""
         visits = []

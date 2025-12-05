@@ -16,6 +16,7 @@ import { Summary as ActivitySummary } from "@/activity-tracker/Summary";
 import { Visits as ActivityVisits } from "@/activity-tracker/Visits";
 import { Uploads as ActivityUploads } from "@/activity-tracker/Uploads";
 import { ActivityLogs } from "@/activity-tracker/ActivityLogs";
+import { ExpenseTracker as ActivityExpenses } from "@/activity-tracker/ExpenseTracker";
 import companies from "../companies";
 import contacts from "../contacts";
 import { Dashboard } from "../dashboard/Dashboard";
@@ -159,6 +160,7 @@ export const CRM = ({
           <Route path="/activity" element={<Navigate to="/activity/summary" replace />} />
           <Route path="/activity/summary" element={<ActivitySummary />} />
           <Route path="/activity/visits" element={<ActivityVisits />} />
+          <Route path="/activity/expenses" element={<ActivityExpenses />} />
           <Route path="/activity/uploads" element={<ActivityUploads />} />
           <Route path="/activity/logs" element={<ActivityLogs />} />
           <Route path={SettingsPage.path} element={<SettingsPage />} />

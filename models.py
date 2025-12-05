@@ -120,6 +120,7 @@ class FinancialEntry(Base):
     mileage_cost = Column(Float, nullable=True)  # Mileage Cost ($) - $0.70/mile
     materials_cost = Column(Float, nullable=True)  # Gas/Treats/Materials ($) - cookies, gas, etc
     total_daily_cost = Column(Float, nullable=False)  # Total Daily Cost ($)
+    user_email = Column(String(255), nullable=True)  # Optional: track user for this entry
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -133,6 +134,7 @@ class FinancialEntry(Base):
             "mileage_cost": self.mileage_cost,
             "materials_cost": self.materials_cost,
             "total_daily_cost": self.total_daily_cost,
+            "user_email": self.user_email,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
@@ -508,5 +510,33 @@ class LeadActivity(Base):
             "old_value": self.old_value,
             "new_value": self.new_value,
             "user_email": self.user_email,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+class Expense(Base):
+    """Expense tracking for team members (e.g. Jacob, Maryssa)"""
+    __tablename__ = "expenses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String(255), nullable=False)
+    amount = Column(Float, nullable=True)
+    description = Column(String(255), nullable=True)
+    category = Column(String(100), nullable=True)  # e.g., "Meals", "Travel", "Supplies"
+    date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    receipt_url = Column(Text, nullable=True)
+    status = Column(String(50), default="pending")  # "pending", "approved", "paid"
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_email": self.user_email,
+            "amount": self.amount,
+            "description": self.description,
+            "category": self.category,
+            "date": self.date.isoformat() if self.date else None,
+            "receipt_url": self.receipt_url,
+            "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
