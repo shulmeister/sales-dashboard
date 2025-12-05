@@ -573,6 +573,8 @@ async def upload_file(
                     "extracted_text": result.get("raw_text", ""),
                     "mailchimp_export": mailchimp_result
                 })
+                    "mailchimp_export": mailchimp_result
+                })
     except HTTPException as he:
         raise he
     except Exception as e:
