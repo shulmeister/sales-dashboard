@@ -1,5 +1,6 @@
 import {
   type CreateParams,
+  type GetManyReferenceParams,
   type DataProvider,
   type DeleteParams,
   type GetListParams,
@@ -84,7 +85,7 @@ const buildListQuery = (params: GetListParams) => {
 
 export const createContactsRestDataProvider = (): Pick<
   DataProvider,
-  "getList" | "getOne" | "create" | "update" | "delete"
+  "getList" | "getOne" | "create" | "update" | "delete" | "getManyReference"
 > => ({
   async getList(_resource: string, params: GetListParams) {
     const query = buildListQuery(params);
@@ -124,5 +125,8 @@ export const createContactsRestDataProvider = (): Pick<
   async delete(_resource: string, params: DeleteParams<Contact>) {
     await httpClient(`/api/contacts/${params.id}`, { method: "DELETE" });
     return { data: params.previousData ?? ({ id: params.id } as Contact) };
+  },
+  async getManyReference(_resource: string, _params: GetManyReferenceParams) {
+    throw new Error("getManyReference not implemented for contacts REST provider");
   },
 });
