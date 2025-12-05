@@ -59,6 +59,8 @@ export const UploadPanel = ({ showLegacyLink = true }: UploadPanelProps) => {
     setError(null);
   };
 
+  const [driveUrl, setDriveUrl] = useState("");
+
   const handleUpload = async () => {
     if (!file) {
       setError("Select a PDF or image to upload");
@@ -87,6 +89,39 @@ export const UploadPanel = ({ showLegacyLink = true }: UploadPanelProps) => {
       console.error("Upload error", err);
       setError(
         err instanceof Error ? err.message : "Something went wrong during upload",
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUrlUpload = async () => {
+    if (!driveUrl) return;
+
+    setUploading(true);
+    setResult(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/upload-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: driveUrl }),
+        credentials: "include",
+      });
+
+      const payload = (await response.json()) as UploadResult;
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || "Upload failed");
+      }
+      setResult(payload);
+      setDriveUrl(""); // Clear input on success
+    } catch (err) {
+      console.error("URL upload error", err);
+      setError(
+        err instanceof Error ? err.message : "Something went wrong during URL upload",
       );
     } finally {
       setUploading(false);
@@ -154,6 +189,60 @@ export const UploadPanel = ({ showLegacyLink = true }: UploadPanelProps) => {
           >
             {uploading ? "Uploading..." : "Upload & Parse"}
           </Button>
+        </Box>
+
+        <Box sx={{ display: "flex", alignItems: "center", my: 2 }}>
+          <Box sx={{ flex: 1, height: "1px", bgcolor: "#334155" }} />
+          <Typography sx={{ px: 2, color: "#94a3b8", fontSize: "0.9rem" }}>
+            OR
+          </Typography>
+          <Box sx={{ flex: 1, height: "1px", bgcolor: "#334155" }} />
+        </Box>
+
+        <Box
+          sx={{
+            border: "1px solid #334155",
+            borderRadius: 2,
+            p: 3,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            backgroundColor: "rgba(30, 41, 59, 0.5)",
+          }}
+        >
+          <Typography sx={{ fontWeight: 600, color: "#f1f5f9" }}>
+            Import from Google Drive
+          </Typography>
+          <Box display="flex" gap={2}>
+            <input
+              type="text"
+              placeholder="Paste Google Drive URL here..."
+              value={driveUrl}
+              onChange={(e) => setDriveUrl(e.target.value)}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: "4px",
+                border: "1px solid #475569",
+                backgroundColor: "#0f172a",
+                color: "#f1f5f9",
+                outline: "none",
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={handleUrlUpload}
+              disabled={!driveUrl || uploading}
+              sx={{
+                backgroundColor: "#10b981",
+                "&:hover": { backgroundColor: "#059669" },
+                textTransform: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {uploading ? "Fetching..." : "Fetch & Parse"}
+            </Button>
+          </Box>
         </Box>
 
         {error && (

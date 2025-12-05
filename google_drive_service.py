@@ -295,3 +295,48 @@ class GoogleDriveService:
                 "error": str(e)
             }
 
+    def download_file_from_url(self, url: str) -> Optional[tuple[bytes, str]]:
+        """
+        Download file content from a Google Drive URL.
+        Returns a tuple of (file_content, filename) or None if failed.
+        """
+        if not self.enabled or not self.service:
+            logger.warning("Google Drive service not available")
+            return None
+            
+        file_id = self.extract_file_id_from_url(url)
+        if not file_id:
+            logger.error(f"Could not extract file ID from URL: {url}")
+            return None
+            
+        try:
+            # Get file metadata first to check name and type
+            file_metadata = self.service.files().get(
+                fileId=file_id,
+                fields="name, mimeType, size",
+                supportsAllDrives=True
+            ).execute()
+            
+            filename = file_metadata.get('name', 'downloaded_file')
+            mime_type = file_metadata.get('mimeType', '')
+            
+            logger.info(f"Downloading file: {filename} ({mime_type})")
+            
+            # Download file content
+            if "application/vnd.google-apps" in mime_type:
+                # Export Google Docs/Sheets/Slides to PDF
+                request = self.service.files().export_media(
+                    fileId=file_id,
+                    mimeType='application/pdf'
+                )
+                filename = os.path.splitext(filename)[0] + '.pdf'
+            else:
+                # Download binary content
+                request = self.service.files().get_media(fileId=file_id)
+                
+            file_content = request.execute()
+            return file_content, filename
+            
+        except Exception as e:
+            logger.error(f"Error downloading file from Drive: {str(e)}")
+            return None

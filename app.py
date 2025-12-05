@@ -573,15 +573,172 @@ async def upload_file(
                     "extracted_text": result.get("raw_text", ""),
                     "mailchimp_export": mailchimp_result
                 })
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.error(f"Error processing business card image: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
-        
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        logger.error(f"Error processing file: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        logger.error(f"Error processing upload: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class UrlUploadRequest(BaseModel):
+    url: str
+
+@app.post("/upload-url")
+async def upload_from_url(
+    request: UrlUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Upload and parse file from Google Drive URL"""
+    try:
+        url = request.url
+        logger.info(f"Processing URL upload: {url}")
+        
+        # Download file from Drive
+        drive_service = GoogleDriveService()
+        if not drive_service.enabled:
+            raise HTTPException(status_code=503, detail="Google Drive service not configured")
+            
+        result = drive_service.download_file_from_url(url)
+        if not result:
+            raise HTTPException(status_code=400, detail="Failed to download file from URL. Ensure the link is accessible.")
+            
+        content, filename = result
+        logger.info(f"Downloaded file: {filename} ({len(content)} bytes)")
+        
+        # Determine file type and process accordingly
+        file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
+        
+        if file_extension == 'pdf':
+            # Parse PDF (MyWay route or Time tracking)
+            logger.info(f"Parsing PDF: {filename}")
+            parse_result = pdf_parser.parse_pdf(content)
+            
+            if not parse_result.get("success", False):
+                error_msg = parse_result.get("error", "Failed to parse PDF")
+                logger.error(f"PDF parsing failed: {error_msg}")
+                raise HTTPException(status_code=400, detail=error_msg)
+        
+            # Return appropriate response based on PDF type
+            if parse_result["type"] == "time_tracking":
+                # Serialize date if it's a datetime object
+                date_value = parse_result["date"]
+                if isinstance(date_value, datetime):
+                    date_value = date_value.date().isoformat()
+                elif date_value and hasattr(date_value, 'date'):
+                    date_value = date_value.date().isoformat()
+                
+                return JSONResponse({
+                    "success": True,
+                    "filename": filename,
+                    "type": "time_tracking",
+                    "date": date_value,
+                    "total_hours": parse_result["total_hours"]
+                })
+            else:
+                visits = parse_result["visits"]
+                if not visits:
+                    raise HTTPException(status_code=400, detail="No visits found in PDF")
+                
+                # Serialize datetime objects
+                serialized_visits = []
+                for visit in visits:
+                    serialized_visit = visit.copy()
+                    if "visit_date" in serialized_visit and serialized_visit["visit_date"]:
+                        if isinstance(serialized_visit["visit_date"], datetime):
+                            serialized_visit["visit_date"] = serialized_visit["visit_date"].date().isoformat()
+                        elif hasattr(serialized_visit["visit_date"], 'date'):
+                            serialized_visit["visit_date"] = serialized_visit["visit_date"].date().isoformat()
+                    serialized_visits.append(serialized_visit)
+                
+                return JSONResponse({
+                    "success": True,
+                    "filename": filename,
+                    "type": "myway_route",
+                    "visits": serialized_visits,
+                    "count": len(serialized_visits)
+                })
+        else:
+            # Assume image for business card
+            logger.info(f"Processing business card image from URL: {filename}")
+            scan_result = business_card_scanner.scan_image(content)
+            
+            if not scan_result.get("success", False):
+                error_msg = scan_result.get("error", "Failed to scan business card")
+                raise HTTPException(status_code=400, detail=error_msg)
+            
+            # Validate contact information
+            contact_data = business_card_scanner.validate_contact(scan_result["contact"])
+            
+            # Save to database (reusing logic from /upload)
+            existing_contact = None
+            if contact_data.get('email'):
+                existing_contact = db.query(Contact).filter(Contact.email == contact_data['email']).first()
+            
+            if existing_contact:
+                # Update logic...
+                if not existing_contact.phone and contact_data.get('phone'):
+                    existing_contact.phone = contact_data['phone']
+                if not existing_contact.title and contact_data.get('title'):
+                    existing_contact.title = contact_data['title']
+                if not existing_contact.company and contact_data.get('company'):
+                    existing_contact.company = contact_data['company']
+                if not existing_contact.website and contact_data.get('website'):
+                    existing_contact.website = contact_data['website']
+                
+                new_notes = f"Scanned from business card URL on {datetime.now().strftime('%Y-%m-%d')}"
+                if existing_contact.notes:
+                    existing_contact.notes = existing_contact.notes + "\n" + new_notes
+                else:
+                    existing_contact.notes = new_notes
+                    
+                existing_contact.updated_at = datetime.utcnow()
+                db.add(existing_contact)
+                db.commit()
+                db.refresh(existing_contact)
+                saved_contact = existing_contact
+            else:
+                # Create logic...
+                new_contact = Contact(
+                    name=contact_data.get('name'),
+                    company=contact_data.get('company'),
+                    title=contact_data.get('title'),
+                    phone=contact_data.get('phone'),
+                    email=contact_data.get('email'),
+                    address=contact_data.get('address'),
+                    website=contact_data.get('website'),
+                    notes=f"Scanned from business card URL on {datetime.now().strftime('%Y-%m-%d')}",
+                    contact_type="prospect",
+                    status="cold",
+                    tags=_serialize_tags(["Scanned"]),
+                    scanned_date=datetime.utcnow(),
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+                db.add(new_contact)
+                db.commit()
+                db.refresh(new_contact)
+                saved_contact = new_contact
+
+            # Export to Mailchimp
+            mailchimp_result = None
+            mailchimp_service = MailchimpService()
+            if mailchimp_service.enabled and contact_data.get('email'):
+                mailchimp_result = mailchimp_service.add_contact(contact_data)
+            
+            return JSONResponse({
+                "success": True,
+                "filename": filename,
+                "type": "business_card",
+                "contact": saved_contact.to_dict(),
+                "extracted_text": scan_result.get("raw_text", ""),
+                "mailchimp_export": mailchimp_result
+            })
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error processing URL upload: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/save-visits")
 async def save_visits(request: Request, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
