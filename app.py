@@ -573,6 +573,9 @@ async def upload_file(
                     "extracted_text": result.get("raw_text", ""),
                     "mailchimp_export": mailchimp_result
                 })
+            except Exception as e:
+                logger.error(f"Error processing business card: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Error processing business card: {str(e)}")
 
     except HTTPException as he:
         raise he
