@@ -733,6 +733,38 @@ def _extract_amount_from_pdf_bytes(content: bytes) -> float:
         return 0.0
 
 
+def _download_drive_public(url: str) -> Optional[tuple]:
+    """Best-effort public Google Drive download without Drive API."""
+    import re
+    import requests
+
+    # Try to extract file id from common drive URL patterns
+    file_id = None
+    match = re.search(r"/d/([^/]+)/", url)
+    if match:
+        file_id = match.group(1)
+    else:
+        match = re.search(r"id=([^&]+)", url)
+        if match:
+            file_id = match.group(1)
+
+    download_url = None
+    if file_id:
+        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    else:
+        download_url = url
+
+    try:
+        resp = requests.get(download_url, allow_redirects=True, timeout=30)
+        if resp.status_code == 200 and resp.content:
+            filename = f"{file_id or 'downloaded_file'}.pdf"
+            return resp.content, filename, {"owners": []}
+        logger.warning(f"Public Drive download failed: status {resp.status_code}")
+    except Exception as e:
+        logger.warning(f"Public Drive download exception: {e}")
+    return None
+
+
 @app.post("/upload-url")
 async def upload_from_url(
     request: UrlUploadRequest,
@@ -746,14 +778,18 @@ async def upload_from_url(
         
         # Download file from Drive
         drive_service = GoogleDriveService()
-        if not drive_service.enabled:
-            raise HTTPException(status_code=503, detail="Google Drive service not configured")
-            
         print(f"DEBUG: Attempting to download from URL: {url}")
-        result = drive_service.download_file_from_url(url)
+
+        result = None
+        if drive_service.enabled:
+            result = drive_service.download_file_from_url(url)
+
+        # Fallback to public download if Drive API not configured or failed
         if not result:
-            print(f"DEBUG: download_file_from_url returned None for URL: {url}")
-            raise HTTPException(status_code=400, detail="Failed to download file from URL. Ensure the link is accessible.")
+            result = _download_drive_public(url)
+
+        if not result:
+            raise HTTPException(status_code=400, detail="Failed to download file from URL. Ensure the link is accessible or make it public.")
             
         content, filename, metadata = result
         logger.info(f"Downloaded file: {filename} ({len(content)} bytes)")

@@ -142,7 +142,7 @@ export const CRM = ({
         layout={Layout}
         loginPage={StartPage}
         i18nProvider={i18nProvider}
-        dashboard={Dashboard}
+        dashboard={ActivitySummary}
         requireAuth
         disableTelemetry
         {...rest}
