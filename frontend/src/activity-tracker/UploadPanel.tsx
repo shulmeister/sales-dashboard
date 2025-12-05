@@ -150,57 +150,6 @@ export const UploadPanel = ({ showLegacyLink = true }: UploadPanelProps) => {
         )}
         <Box
           sx={{
-            border: "1px dashed #475569",
-            borderRadius: 2,
-            p: 3,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            textAlign: "center",
-            gap: 2,
-            backgroundColor: "rgba(148, 163, 184, 0.05)",
-          }}
-        >
-          {fileIcon || <CloudUploadIcon sx={{ fontSize: 48, color: "#64748b" }} />}
-          <div>
-            <Typography sx={{ fontWeight: 600, color: "#f1f5f9" }}>
-              {file ? file.name : "Choose a PDF or image"}
-            </Typography>
-            <Typography sx={{ color: "#94a3b8", fontSize: "0.85rem" }}>
-              Accepted types: {ACCEPTED_TYPES.join(", ")}
-            </Typography>
-          </div>
-          <input
-            type="file"
-            accept={ACCEPTED_TYPES.join(",")}
-            onChange={handleFileChange}
-            disabled={uploading}
-          />
-          <Button
-            variant="contained"
-            startIcon={<CloudUploadIcon />}
-            onClick={handleUpload}
-            disabled={!file || uploading}
-            sx={{
-              backgroundColor: "#3b82f6",
-              "&:hover": { backgroundColor: "#2563eb" },
-              textTransform: "none",
-            }}
-          >
-            {uploading ? "Uploading..." : "Upload & Parse"}
-          </Button>
-        </Box>
-
-        <Box sx={{ display: "flex", alignItems: "center", my: 2 }}>
-          <Box sx={{ flex: 1, height: "1px", bgcolor: "#334155" }} />
-          <Typography sx={{ px: 2, color: "#94a3b8", fontSize: "0.9rem" }}>
-            OR
-          </Typography>
-          <Box sx={{ flex: 1, height: "1px", bgcolor: "#334155" }} />
-        </Box>
-
-        <Box
-          sx={{
             border: "1px solid #334155",
             borderRadius: 2,
             p: 3,
@@ -243,6 +192,57 @@ export const UploadPanel = ({ showLegacyLink = true }: UploadPanelProps) => {
               {uploading ? "Fetching..." : "Fetch & Parse"}
             </Button>
           </Box>
+        </Box>
+
+        <Box sx={{ display: "flex", alignItems: "center", my: 2 }}>
+          <Box sx={{ flex: 1, height: "1px", bgcolor: "#334155" }} />
+          <Typography sx={{ px: 2, color: "#94a3b8", fontSize: "0.9rem" }}>
+            OR
+          </Typography>
+          <Box sx={{ flex: 1, height: "1px", bgcolor: "#334155" }} />
+        </Box>
+
+        <Box
+          sx={{
+            border: "1px dashed #475569",
+            borderRadius: 2,
+            p: 3,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+            gap: 2,
+            backgroundColor: "rgba(148, 163, 184, 0.05)",
+          }}
+        >
+          {fileIcon || <CloudUploadIcon sx={{ fontSize: 48, color: "#64748b" }} />}
+          <div>
+            <Typography sx={{ fontWeight: 600, color: "#f1f5f9" }}>
+              {file ? file.name : "Choose a PDF or image"}
+            </Typography>
+            <Typography sx={{ color: "#94a3b8", fontSize: "0.85rem" }}>
+              Accepted types: {ACCEPTED_TYPES.join(", ")}
+            </Typography>
+          </div>
+          <input
+            type="file"
+            accept={ACCEPTED_TYPES.join(",")}
+            onChange={handleFileChange}
+            disabled={uploading}
+          />
+          <Button
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            onClick={handleUpload}
+            disabled={!file || uploading}
+            sx={{
+              backgroundColor: "#3b82f6",
+              "&:hover": { backgroundColor: "#2563eb" },
+              textTransform: "none",
+            }}
+          >
+            {uploading ? "Uploading..." : "Upload & Parse"}
+          </Button>
         </Box>
 
         {error && (

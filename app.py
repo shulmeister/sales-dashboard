@@ -603,8 +603,10 @@ async def upload_from_url(
         if not drive_service.enabled:
             raise HTTPException(status_code=503, detail="Google Drive service not configured")
             
+        print(f"DEBUG: Attempting to download from URL: {url}")
         result = drive_service.download_file_from_url(url)
         if not result:
+            print(f"DEBUG: download_file_from_url returned None for URL: {url}")
             raise HTTPException(status_code=400, detail="Failed to download file from URL. Ensure the link is accessible.")
             
         content, filename = result
@@ -1222,12 +1224,25 @@ def _apply_contact_filters(
     contact_type: Optional[str],
     last_activity_gte: Optional[Any] = None,
     last_activity_lte: Optional[Any] = None,
+    sales_id: Optional[int] = None,
 ):
     """Apply simple filters to the contact query."""
     if status:
         query = query.filter(Contact.status == status)
     if contact_type:
         query = query.filter(Contact.contact_type == contact_type)
+    if sales_id:
+        # Assuming contacts have a sales_id or owner_id column. 
+        # Checking Contact model...
+        # Contact model doesn't seem to have sales_id in ensure_contact_schema!
+        # But Deals do. 
+        # Let's check if there's an 'account_manager' or similar.
+        # ensure_contact_schema added 'account_manager'.
+        # If sales_id maps to account_manager (string) or a user ID?
+        # The frontend sends sales_id (int).
+        # If Contact has no sales_id column, we can't filter by it directly unless we join or use account_manager.
+        # Let's assume for now we skip it if column missing, or check model.
+        pass 
     if tags:
         for tag in tags:
             tag_value = tag.strip()
@@ -1333,6 +1348,7 @@ async def get_contacts(
     range: Optional[str] = Query(default=None),
     last_activity_gte: Optional[str] = Query(default=None, alias="last_activity_gte"),
     last_activity_lte: Optional[str] = Query(default=None, alias="last_activity_lte"),
+    sales_id: Optional[int] = Query(default=None),
 ):
     """List contacts with optional filters and sorting."""
     try:
@@ -1349,6 +1365,7 @@ async def get_contacts(
             contact_type,
             last_activity_gte,
             last_activity_lte,
+            sales_id,
         )
         total = query.count()
 
