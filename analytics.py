@@ -233,7 +233,7 @@ class AnalyticsEngine:
                 "total_mileage_cost": round(total_mileage_cost, 2),
                 "total_materials_cost": round(total_materials_cost, 2),
                 "total_costs": round(total_costs, 2),
-                "total_bonuses_earned": round(total_bonuses_earned, 2),
+                "total_bonuses": round(total_bonuses_earned, 2),
                 "total_bonuses_paid": round(total_bonuses_paid, 2),
                 "total_wages_expenses": round(total_costs, 2), # Just daily summary costs
                 "costs_this_month": round(costs_this_month, 2),
