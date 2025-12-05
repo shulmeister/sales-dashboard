@@ -34,6 +34,10 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 # Load environment variables
 load_dotenv()
 
+# Logger setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 def ensure_contact_schema():
     """Add new contact columns if they are missing (works for Postgres + SQLite)."""
