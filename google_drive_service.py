@@ -47,6 +47,14 @@ class GoogleDriveService:
             self.service = build('drive', 'v3', credentials=delegated_credentials)
             logger.info(f"Google Drive service initialized with domain-wide delegation for {self.user_email}")
             
+            # Create credentials WITHOUT domain-wide delegation for public/shared file access
+            public_credentials = service_account.Credentials.from_service_account_info(
+                credentials_info,
+                scopes=['https://www.googleapis.com/auth/drive.readonly']
+            )
+            self.public_service = build('drive', 'v3', credentials=public_credentials)
+            logger.info("Google Drive public service initialized")
+            
         except Exception as e:
             logger.error(f"Error building Google Drive service: {str(e)}")
             self.enabled = False
@@ -300,8 +308,14 @@ class GoogleDriveService:
         Download file content from a Google Drive URL.
         Returns a tuple of (file_content, filename) or None if failed.
         """
-        if not self.enabled or not self.service:
+        if not self.enabled:
             logger.warning("Google Drive service not available")
+            return None
+            
+        # Use public_service if available, otherwise fall back to delegated service
+        service_to_use = getattr(self, 'public_service', self.service)
+        if not service_to_use:
+            logger.warning("No Google Drive service available for download")
             return None
             
         file_id = self.extract_file_id_from_url(url)
@@ -311,7 +325,7 @@ class GoogleDriveService:
             
         try:
             # Get file metadata first to check name and type
-            file_metadata = self.service.files().get(
+            file_metadata = service_to_use.files().get(
                 fileId=file_id,
                 fields="name, mimeType, size",
                 supportsAllDrives=True
@@ -325,14 +339,15 @@ class GoogleDriveService:
             # Download file content
             if "application/vnd.google-apps" in mime_type:
                 # Export Google Docs/Sheets/Slides to PDF
-                request = self.service.files().export_media(
+                request = service_to_use.files().export_media(
                     fileId=file_id,
                     mimeType='application/pdf'
                 )
                 filename = os.path.splitext(filename)[0] + '.pdf'
             else:
+            else:
                 # Download binary content
-                request = self.service.files().get_media(fileId=file_id)
+                request = service_to_use.files().get_media(fileId=file_id)
                 
             file_content = request.execute()
             return file_content, filename
