@@ -140,3 +140,5 @@ After completing:
 - The frontend uses React Admin v5 (`ra-core`). Data provider interface is standard.
 - Database is PostgreSQL on Heroku, SQLite locally. Schema migration helper handles both.
 
+
+

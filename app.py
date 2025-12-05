@@ -85,30 +85,58 @@ def ensure_deal_schema():
         return
 
     with engine.connect() as conn:
+        dialect = engine.dialect.name
+        
         # Create table if missing
-        conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS deals (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL,
-                    company_id INTEGER NULL,
-                    contact_ids TEXT NULL,
-                    category VARCHAR(100) NULL,
-                    stage VARCHAR(100) NULL,
-                    description TEXT NULL,
-                    amount FLOAT NULL,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW(),
-                    archived_at TIMESTAMP NULL,
-                    expected_closing_date TIMESTAMP NULL,
-                    sales_id INTEGER NULL,
-                    index INTEGER NULL,
-                    est_weekly_hours FLOAT NULL
+        if dialect == "sqlite":
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS deals (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(255) NOT NULL,
+                        company_id INTEGER NULL,
+                        contact_ids TEXT NULL,
+                        category VARCHAR(100) NULL,
+                        stage VARCHAR(100) NULL,
+                        description TEXT NULL,
+                        amount FLOAT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        archived_at TIMESTAMP NULL,
+                        expected_closing_date TIMESTAMP NULL,
+                        sales_id INTEGER NULL,
+                        "index" INTEGER NULL,
+                        est_weekly_hours FLOAT NULL
+                    )
+                    """
                 )
-                """
             )
-        )
+        else:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS deals (
+                        id SERIAL PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        company_id INTEGER NULL,
+                        contact_ids TEXT NULL,
+                        category VARCHAR(100) NULL,
+                        stage VARCHAR(100) NULL,
+                        description TEXT NULL,
+                        amount FLOAT NULL,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW(),
+                        archived_at TIMESTAMP NULL,
+                        expected_closing_date TIMESTAMP NULL,
+                        sales_id INTEGER NULL,
+                        "index" INTEGER NULL,
+                        est_weekly_hours FLOAT NULL
+                    )
+                    """
+                )
+            )
+            
         # Add missing columns if table existed without them
         columns = {
             "company_id": "INTEGER",
@@ -120,20 +148,24 @@ def ensure_deal_schema():
             "archived_at": "TIMESTAMP",
             "expected_closing_date": "TIMESTAMP",
             "sales_id": "INTEGER",
-            "index": "INTEGER",
+            '"index"': "INTEGER",
             "est_weekly_hours": "FLOAT",
         }
         dialect = engine.dialect.name
 
         def column_exists(column: str) -> bool:
             if dialect == "sqlite":
+                # Handle quoted column names for check
+                clean_col = column.replace('"', '')
                 rows = conn.execute(text("PRAGMA table_info(deals)")).fetchall()
-                return any(row[1] == column for row in rows)
+                return any(row[1] == clean_col for row in rows)
+            
+            clean_col = column.replace('"', '')
             row = conn.execute(
                 text(
                     "SELECT column_name FROM information_schema.columns WHERE table_name='deals' AND column_name=:column"
                 ),
-                {"column": column},
+                {"column": clean_col},
             ).fetchone()
             return row is not None
 
