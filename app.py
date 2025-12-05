@@ -419,7 +419,11 @@ async def read_root(request: Request, current_user: Optional[Dict[str, Any]] = D
     return RedirectResponse(url="/legacy")
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...), current_user: Dict[str, Any] = Depends(get_current_user)):
+async def upload_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """Upload and parse PDF file (MyWay route or Time tracking) or scan business card image"""
     try:
         # Validate file type
@@ -498,21 +502,74 @@ async def upload_file(file: UploadFile = File(...), current_user: Dict[str, Any]
                     raise HTTPException(status_code=400, detail=error_msg)
                 
                 # Validate contact information
-                contact = business_card_scanner.validate_contact(result["contact"])
+                contact_data = business_card_scanner.validate_contact(result["contact"])
                 
+                # Save to database
+                # Check for existing contact by email if present
+                existing_contact = None
+                if contact_data.get('email'):
+                    existing_contact = db.query(Contact).filter(Contact.email == contact_data['email']).first()
+                
+                if existing_contact:
+                    logger.info(f"Updating existing contact: {contact_data.get('email')}")
+                    # Update fields if they are empty in existing record
+                    if not existing_contact.phone and contact_data.get('phone'):
+                        existing_contact.phone = contact_data['phone']
+                    if not existing_contact.title and contact_data.get('title'):
+                        existing_contact.title = contact_data['title']
+                    if not existing_contact.company and contact_data.get('company'):
+                        existing_contact.company = contact_data['company']
+                    if not existing_contact.website and contact_data.get('website'):
+                        existing_contact.website = contact_data['website']
+                    
+                    # Merge notes
+                    new_notes = f"Scanned from business card on {datetime.now().strftime('%Y-%m-%d')}"
+                    if existing_contact.notes:
+                        existing_contact.notes = existing_contact.notes + "\n" + new_notes
+                    else:
+                        existing_contact.notes = new_notes
+                        
+                    existing_contact.updated_at = datetime.utcnow()
+                    db.add(existing_contact)
+                    db.commit()
+                    db.refresh(existing_contact)
+                    saved_contact = existing_contact
+                else:
+                    logger.info(f"Creating new contact from scan: {contact_data.get('name')}")
+                    new_contact = Contact(
+                        name=contact_data.get('name'),
+                        company=contact_data.get('company'),
+                        title=contact_data.get('title'),
+                        phone=contact_data.get('phone'),
+                        email=contact_data.get('email'),
+                        address=contact_data.get('address'),
+                        website=contact_data.get('website'),
+                        notes=f"Scanned from business card on {datetime.now().strftime('%Y-%m-%d')}",
+                        contact_type="prospect",  # Default to prospect
+                        status="cold",  # Default to cold
+                        tags=_serialize_tags(["Scanned"]),
+                        scanned_date=datetime.utcnow(),
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    db.add(new_contact)
+                    db.commit()
+                    db.refresh(new_contact)
+                    saved_contact = new_contact
+
                 # Export to Mailchimp if configured
                 mailchimp_result = None
                 mailchimp_service = MailchimpService()
-                if mailchimp_service.enabled and contact.get('email'):
-                    mailchimp_result = mailchimp_service.add_contact(contact)
+                if mailchimp_service.enabled and contact_data.get('email'):
+                    mailchimp_result = mailchimp_service.add_contact(contact_data)
                     logger.info(f"Mailchimp export result: {mailchimp_result}")
                 
-                logger.info(f"Successfully scanned business card: {contact.get('name', 'Unknown')}")
+                logger.info(f"Successfully scanned and saved business card: {contact_data.get('name', 'Unknown')}")
                 return JSONResponse({
                     "success": True,
                     "filename": file.filename,
                     "type": "business_card",
-                    "contact": contact,
+                    "contact": saved_contact.to_dict(),
                     "extracted_text": result.get("raw_text", ""),
                     "mailchimp_export": mailchimp_result
                 })

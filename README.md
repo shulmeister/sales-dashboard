@@ -4,6 +4,7 @@ A full-stack web application for tracking sales visits, business card scanning, 
 
 ## Features
 
+- [NEW] **REST API**: Full CRUD endpoints for Contacts and Deals
 - **Dashboard**: Real-time analytics with visits, hours tracked, and closed sales
 - **PDF Upload**: Upload MyWay route PDFs to automatically parse visit data
 - **Business Card Scanner**: Upload business card images (JPEG, PNG, HEIC) with OCR extraction
@@ -12,6 +13,38 @@ A full-stack web application for tracking sales visits, business card scanning, 
 - **Closed Sales**: Track closed deals with commission and bonus data
 - **Financial Data**: Import and manage financial records
 - **Google Sheets Sync**: Append visit data to shared Google Sheets
+
+## API Endpoints
+
+### Contacts
+- `GET /api/contacts` - List contacts (supports filtering by tags, status, type)
+- `GET /api/contacts/{id}` - Get single contact
+- `POST /api/contacts` - Create contact
+- `PUT /api/contacts/{id}` - Update contact
+- `DELETE /api/contacts/{id}` - Delete contact
+
+### Deals
+- `GET /api/deals` - List deals (supports filtering by stage, date)
+- `GET /api/deals/{id}` - Get single deal
+- `POST /api/deals` - Create deal
+- `PUT /api/deals/{id}` - Update deal
+- `DELETE /api/deals/{id}` - Delete deal
+
+## Data Import
+
+### December 2025 Leads
+To import the December 2025 lead batch (idempotent):
+
+```bash
+python add_december_2025_leads.py
+```
+
+This script will:
+- Seed incoming leads and referral sources
+- Create associated tasks
+- Create/update Contact records
+- Create Deal records (Opportunities)
+
 
 ## Tech Stack
 

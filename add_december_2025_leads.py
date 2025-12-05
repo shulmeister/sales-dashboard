@@ -1148,6 +1148,7 @@ def ensure_referral_source(session, payload: Dict[str, Any]) -> bool:
         notes=payload.get("notes"),
     )
     session.add(source)
+    session.flush()
     return True
 
 
