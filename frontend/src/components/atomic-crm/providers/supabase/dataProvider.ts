@@ -24,6 +24,7 @@ import { getContactAvatar } from "../commons/getContactAvatar";
 import { getIsInitialized } from "./authProvider";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase";
 import { createContactsRestDataProvider } from "../rest/contactsDataProvider";
+import { createDealsRestDataProvider } from "../rest/dealsDataProvider";
 
 const baseDataProvider = supabaseDataProvider({
   instanceUrl: SUPABASE_URL,
@@ -33,6 +34,7 @@ const baseDataProvider = supabaseDataProvider({
 });
 
 const contactsRestProvider = createContactsRestDataProvider();
+const dealsRestProvider = createDealsRestDataProvider();
 
 const processCompanyLogo = async (params: any) => {
   let logo = params.data.logo;
@@ -84,6 +86,9 @@ const dataProviderWithCustomMethods = {
     if (resource === "contacts") {
       return contactsRestProvider.getList("contacts", params);
     }
+    if (resource === "deals") {
+      return dealsRestProvider.getList("deals", params);
+    }
 
     return baseDataProvider.getList(resource, params);
   },
@@ -94,6 +99,9 @@ const dataProviderWithCustomMethods = {
     if (resource === "contacts") {
       return contactsRestProvider.getOne("contacts", params);
     }
+    if (resource === "deals") {
+      return dealsRestProvider.getOne("deals", params);
+    }
 
     return baseDataProvider.getOne(resource, params);
   },
@@ -101,17 +109,26 @@ const dataProviderWithCustomMethods = {
     if (resource === "contacts") {
       return contactsRestProvider.create("contacts", params);
     }
+    if (resource === "deals") {
+      return dealsRestProvider.create("deals", params);
+    }
     return baseDataProvider.create(resource, params);
   },
   async update(resource: string, params: any) {
     if (resource === "contacts") {
       return contactsRestProvider.update("contacts", params);
     }
+    if (resource === "deals") {
+      return dealsRestProvider.update("deals", params);
+    }
     return baseDataProvider.update(resource, params);
   },
   async delete(resource: string, params: any) {
     if (resource === "contacts") {
       return contactsRestProvider.delete("contacts", params);
+    }
+    if (resource === "deals") {
+      return dealsRestProvider.delete("deals", params);
     }
     return baseDataProvider.delete(resource, params);
   },

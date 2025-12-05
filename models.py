@@ -162,6 +162,53 @@ class SalesBonus(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
+class Deal(Base):
+    """Simple deals table for CRM deal tracking"""
+    __tablename__ = "deals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    company_id = Column(Integer, nullable=True)
+    contact_ids = Column(Text, nullable=True)  # JSON array of contact ids
+    category = Column(String(100), nullable=True)
+    stage = Column(String(100), nullable=True, default="opportunity")
+    description = Column(Text, nullable=True)
+    amount = Column(Float, nullable=True, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    archived_at = Column(DateTime, nullable=True)
+    expected_closing_date = Column(DateTime, nullable=True)
+    sales_id = Column(Integer, nullable=True)
+    index = Column(Integer, nullable=True)
+    est_weekly_hours = Column(Float, nullable=True)
+
+    def to_dict(self):
+        ids = []
+        if self.contact_ids:
+            try:
+                ids = json.loads(self.contact_ids)
+            except json.JSONDecodeError:
+                ids = []
+        return {
+            "id": self.id,
+            "name": self.name,
+            "company_id": self.company_id,
+            "contact_ids": ids,
+            "category": self.category,
+            "stage": self.stage,
+            "description": self.description,
+            "amount": self.amount,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "archived_at": self.archived_at.isoformat() if self.archived_at else None,
+            "expected_closing_date": self.expected_closing_date.isoformat()
+            if self.expected_closing_date
+            else None,
+            "sales_id": self.sales_id,
+            "index": self.index,
+            "est_weekly_hours": self.est_weekly_hours,
+        }
+
 class ActivityNote(Base):
     """Activity notes for tracking daily activities and observations"""
     __tablename__ = "activity_notes"

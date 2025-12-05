@@ -20,7 +20,7 @@ except ImportError:
 from parser import PDFParser
 from google_sheets import GoogleSheetsManager
 from database import get_db, db_manager
-from models import Visit, TimeEntry, Contact, ActivityNote, FinancialEntry, SalesBonus, DashboardSummary, EmailCount, ActivityLog
+from models import Visit, TimeEntry, Contact, ActivityNote, FinancialEntry, SalesBonus, DashboardSummary, EmailCount, ActivityLog, Deal
 from analytics import AnalyticsEngine
 from migrate_data import GoogleSheetsMigrator
 from business_card_scanner import BusinessCardScanner
@@ -75,6 +75,78 @@ def ensure_contact_schema():
 
 
 ensure_contact_schema()
+
+
+def ensure_deal_schema():
+    """Ensure deals table exists with required columns (lightweight migration)."""
+    engine = db_manager.engine
+    if not engine:
+        return
+
+    with engine.connect() as conn:
+        # Create table if missing
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS deals (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    company_id INTEGER NULL,
+                    contact_ids TEXT NULL,
+                    category VARCHAR(100) NULL,
+                    stage VARCHAR(100) NULL,
+                    description TEXT NULL,
+                    amount FLOAT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    archived_at TIMESTAMP NULL,
+                    expected_closing_date TIMESTAMP NULL,
+                    sales_id INTEGER NULL,
+                    index INTEGER NULL,
+                    est_weekly_hours FLOAT NULL
+                )
+                """
+            )
+        )
+        # Add missing columns if table existed without them
+        columns = {
+            "company_id": "INTEGER",
+            "contact_ids": "TEXT",
+            "category": "VARCHAR(100)",
+            "stage": "VARCHAR(100)",
+            "description": "TEXT",
+            "amount": "FLOAT",
+            "archived_at": "TIMESTAMP",
+            "expected_closing_date": "TIMESTAMP",
+            "sales_id": "INTEGER",
+            "index": "INTEGER",
+            "est_weekly_hours": "FLOAT",
+        }
+        dialect = engine.dialect.name
+
+        def column_exists(column: str) -> bool:
+            if dialect == "sqlite":
+                rows = conn.execute(text("PRAGMA table_info(deals)")).fetchall()
+                return any(row[1] == column for row in rows)
+            row = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name='deals' AND column_name=:column"
+                ),
+                {"column": column},
+            ).fetchone()
+            return row is not None
+
+        for col, typ in columns.items():
+            if not column_exists(col):
+                if dialect == "sqlite":
+                    conn.execute(text(f"ALTER TABLE deals ADD COLUMN {col} {typ}"))
+                else:
+                    conn.execute(
+                        text(f"ALTER TABLE deals ADD COLUMN IF NOT EXISTS {col} {typ}")
+                    )
+
+
+ensure_deal_schema()
 
 # Portal SSO configuration (shared secret with main portal)
 PORTAL_SECRET = os.getenv("PORTAL_SECRET", "colorado-careassist-portal-2025")
@@ -954,6 +1026,25 @@ def _apply_contact_filters(
     return query
 
 
+def _apply_deal_filters(
+    query,
+    stage: Optional[str],
+    created_gte: Optional[Any] = None,
+    created_lte: Optional[Any] = None,
+):
+    if stage:
+        query = query.filter(Deal.stage == stage)
+    if created_gte:
+        dt = _coerce_datetime(created_gte)
+        if dt:
+            query = query.filter(Deal.created_at >= dt)
+    if created_lte:
+        dt = _coerce_datetime(created_lte)
+        if dt:
+            query = query.filter(Deal.created_at <= dt)
+    return query
+
+
 def _contact_order_clause(sort_field: Optional[str], order: Optional[str]):
     """Return an order_by clause for contacts."""
     sort_map = {
@@ -962,6 +1053,17 @@ def _contact_order_clause(sort_field: Optional[str], order: Optional[str]):
         "name": Contact.name,
     }
     sort_column = sort_map.get((sort_field or "").lower(), Contact.created_at)
+    direction = (order or "DESC").upper()
+    return sort_column.desc() if direction == "DESC" else sort_column.asc()
+
+
+def _deal_order_clause(sort_field: Optional[str], order: Optional[str]):
+    sort_map = {
+        "created_at": Deal.created_at,
+        "name": Deal.name,
+        "amount": Deal.amount,
+    }
+    sort_column = sort_map.get((sort_field or "").lower(), Deal.created_at)
     direction = (order or "DESC").upper()
     return sort_column.desc() if direction == "DESC" else sort_column.asc()
 
@@ -984,6 +1086,15 @@ def _serialize_tags(value: Optional[Any]) -> Optional[str]:
         return None
     if isinstance(value, str):
         return value
+    try:
+        return json.dumps(value)
+    except Exception:
+        return None
+
+
+def _serialize_ids(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
     try:
         return json.dumps(value)
     except Exception:
@@ -1161,6 +1272,156 @@ async def delete_contact(
         return JSONResponse({"success": True})
     except Exception as e:
         logger.error(f"Error deleting contact: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/deals")
+async def get_deals(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    stage: Optional[str] = Query(default=None),
+    sort: Optional[str] = Query(default=None),
+    order: Optional[str] = Query(default=None),
+    range: Optional[str] = Query(default=None),
+    created_at_gte: Optional[str] = Query(default=None, alias="created_at@gte"),
+    created_at_lte: Optional[str] = Query(default=None, alias="created_at@lte"),
+):
+    try:
+        range_header = request.headers.get("Range")
+        range_param = range or (range_header.split("=")[1] if range_header else None)
+        start, end = _parse_range(range_param)
+
+        query = db.query(Deal)
+        query = _apply_deal_filters(query, stage, created_at_gte, created_at_lte)
+        total = query.count()
+
+        deals = (
+            query.order_by(_deal_order_clause(sort, order))
+            .offset(start)
+            .limit(end - start + 1)
+            .all()
+        )
+
+        content_range = f"deals {start}-{start + len(deals) - 1 if deals else start}/{total}"
+        headers = {
+            "Content-Range": content_range,
+            "Access-Control-Expose-Headers": "Content-Range",
+            "X-Total-Count": str(total),
+        }
+
+        return JSONResponse(
+            {"data": [deal.to_dict() for deal in deals], "total": total},
+            headers=headers,
+        )
+    except Exception as e:
+        logger.error(f"Error fetching deals: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/deals/{deal_id}")
+async def get_deal(
+    deal_id: int,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    deal = db.query(Deal).filter(Deal.id == deal_id).first()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+    return JSONResponse(deal.to_dict())
+
+
+@app.post("/api/deals")
+async def create_deal(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    try:
+        payload = await request.json()
+        now = datetime.now(timezone.utc)
+        deal = Deal(
+            name=payload.get("name"),
+            company_id=payload.get("company_id"),
+            contact_ids=_serialize_ids(payload.get("contact_ids")),
+            category=payload.get("category"),
+            stage=payload.get("stage", "opportunity"),
+            description=payload.get("description"),
+            amount=payload.get("amount") or 0,
+            created_at=_coerce_datetime(payload.get("created_at"), now),
+            updated_at=now,
+            archived_at=_coerce_datetime(payload.get("archived_at")),
+            expected_closing_date=_coerce_datetime(payload.get("expected_closing_date")),
+            sales_id=payload.get("sales_id"),
+            index=payload.get("index"),
+        )
+        db.add(deal)
+        db.commit()
+        db.refresh(deal)
+        return JSONResponse(deal.to_dict(), status_code=status.HTTP_201_CREATED)
+    except Exception as e:
+        logger.error(f"Error creating deal: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/deals/{deal_id}")
+async def update_deal(
+    deal_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    deal = db.query(Deal).filter(Deal.id == deal_id).first()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+    try:
+        payload = await request.json()
+        for field in [
+            "name",
+            "company_id",
+            "category",
+            "stage",
+            "description",
+            "amount",
+            "sales_id",
+            "index",
+        ]:
+            if field in payload:
+                setattr(deal, field, payload.get(field))
+        if "contact_ids" in payload:
+            deal.contact_ids = _serialize_ids(payload.get("contact_ids"))
+        if "archived_at" in payload:
+            deal.archived_at = _coerce_datetime(payload.get("archived_at"))
+        if "expected_closing_date" in payload:
+            deal.expected_closing_date = _coerce_datetime(payload.get("expected_closing_date"))
+        deal.updated_at = datetime.now(timezone.utc)
+        db.add(deal)
+        db.commit()
+        db.refresh(deal)
+        return JSONResponse(deal.to_dict())
+    except Exception as e:
+        logger.error(f"Error updating deal: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/deals/{deal_id}")
+async def delete_deal(
+    deal_id: int,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    deal = db.query(Deal).filter(Deal.id == deal_id).first()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+    try:
+        db.delete(deal)
+        db.commit()
+        return JSONResponse({"success": True})
+    except Exception as e:
+        logger.error(f"Error deleting deal: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 

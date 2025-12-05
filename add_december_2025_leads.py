@@ -29,6 +29,7 @@ from models import (
     LeadTask,
     PipelineStage,
     ReferralSource,
+    Deal,
 )
 
 SYSTEM_USER_EMAIL = "portal-batch-import@coloradocareassist.com"
@@ -1309,6 +1310,71 @@ def ensure_contact_from_referral(session, referral: ReferralSource) -> None:
     session.add(contact)
 
 
+def _lead_to_deal_payload(lead: Lead) -> Dict[str, Any]:
+    """Map a lead into a simple deal payload."""
+    # Approximate hours from notes when possible
+    hours_map = {
+        "carin craft": 42,  # 6 hours/day * 7 days (requested 9-3)
+        "mimi meyers": 10.5,  # 3-4 hours Thu/Sat/Sun (~3.5*3)
+    }
+    est_hours = hours_map.get(lead.name.lower())
+
+    def _rate(payor: Optional[str]) -> float:
+        if payor and "va" in payor.lower():
+            return 67.0
+        return 40.0
+
+    rate = _rate(lead.payor_source)
+    amount = (est_hours or 0) * rate
+
+    return {
+        "name": lead.name,
+        "amount": amount,
+        "stage": "opportunity",
+        "description": (lead.notes or "")[:500],
+        "created_at": lead.created_at,
+        "expected_closing_date": None,
+        "contact_ids": [],
+        "company_id": None,
+        "est_weekly_hours": est_hours,
+    }
+
+
+def ensure_deal_from_lead(session, lead: Lead) -> None:
+    """Create a Deal for the lead if not present."""
+    existing = (
+        session.query(Deal)
+        .filter(func.lower(Deal.name) == lead.name.lower())
+        .first()
+    )
+    payload = _lead_to_deal_payload(lead)
+    now = datetime.now(timezone.utc)
+    if existing:
+        updated = False
+        for field in ["amount", "stage", "description", "expected_closing_date", "est_weekly_hours"]:
+            new_val = payload.get(field)
+            if getattr(existing, field) != new_val:
+                setattr(existing, field, new_val)
+                updated = True
+        if updated:
+            existing.updated_at = now
+            session.add(existing)
+        return
+
+    deal = Deal(
+        name=payload["name"],
+        amount=payload["amount"],
+        stage=payload["stage"],
+        description=payload["description"],
+        est_weekly_hours=payload["est_weekly_hours"],
+        contact_ids=json.dumps(payload["contact_ids"]),
+        company_id=payload["company_id"],
+        created_at=payload["created_at"] or now,
+        updated_at=now,
+    )
+    session.add(deal)
+
+
 def main() -> None:
     session = db_manager.get_session()
     created = 0
@@ -1322,6 +1388,7 @@ def main() -> None:
             lead, was_created = ensure_lead(session, stage, payload)
             ensure_tasks(session, lead, payload)
             ensure_contact_from_lead(session, lead)
+            ensure_deal_from_lead(session, lead)
             if was_created:
                 created += 1
                 print(f"✅ Created lead '{lead.name}' (ID {lead.id})")
