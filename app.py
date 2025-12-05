@@ -704,6 +704,35 @@ async def upload_file(
 class UrlUploadRequest(BaseModel):
     url: str
 
+# --- Helpers for expense extraction ---
+def _extract_amount_from_text(text: str) -> float:
+    """Find the largest currency-like amount in text."""
+    import re
+    amounts = re.findall(r"\d+\.\d{2}", text)
+    if not amounts:
+        return 0.0
+    try:
+        return max(float(a) for a in amounts)
+    except Exception:
+        return 0.0
+
+
+def _extract_amount_from_pdf_bytes(content: bytes) -> float:
+    """Extract a likely total from a PDF by scanning text."""
+    try:
+        import io
+        import pdfplumber
+
+        text = ""
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages:
+                text += "\n" + (page.extract_text() or "")
+        return _extract_amount_from_text(text)
+    except Exception as e:
+        logger.warning(f"Could not extract amount from PDF: {e}")
+        return 0.0
+
+
 @app.post("/upload-url")
 async def upload_from_url(
     request: UrlUploadRequest,
@@ -732,8 +761,18 @@ async def upload_from_url(
         # Detect expenses based on filename or owner
         owners = metadata.get('owners', [])
         owner_email = owners[0].get('emailAddress', '') if owners else ''
-        is_expense_user = owner_email in ['jacob@coloradocareassist.com', 'maryssa@coloradocareassist.com']
-        is_expense_file = 'receipt' in filename.lower() or 'expense' in filename.lower()
+        if not owner_email:
+            owner_email = current_user.get("email") or "unknown@coloradocareassist.com"
+        allowed_expense_users = {
+            'jacob@coloradocareassist.com',
+            'maryssa@coloradocareassist.com',
+            current_user.get("email") or ""
+        }
+        is_expense_user = owner_email in allowed_expense_users
+        is_expense_file = any(
+            key in filename.lower()
+            for key in ["receipt", "expense", "gas", "fuel", "meal", "uber", "lyft", "taxi", "parking", "hotel"]
+        )
         
         # Determine file type and process accordingly
         file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
@@ -741,15 +780,14 @@ async def upload_from_url(
         if file_extension == 'pdf':
             # Parse PDF (MyWay route or Time tracking)
             logger.info(f"Parsing PDF: {filename}")
-            parse_result = pdf_parser.parse_pdf(content)
-            
-            if not parse_result.get("success", False):
-                error_msg = parse_result.get("error", "Failed to parse PDF")
-                logger.error(f"PDF parsing failed: {error_msg}")
-                raise HTTPException(status_code=400, detail=error_msg)
+            try:
+                parse_result = pdf_parser.parse_pdf(content)
+            except Exception as e:
+                logger.warning(f"PDF parser threw exception, will fall back to expense OCR: {e}")
+                parse_result = {"success": False, "error": str(e)}
         
             # Return appropriate response based on PDF type
-            if parse_result["type"] == "time_tracking":
+            if parse_result.get("success") and parse_result.get("type") == "time_tracking":
                 # Serialize date if it's a datetime object
                 date_value = parse_result["date"]
                 if isinstance(date_value, datetime):
@@ -827,28 +865,38 @@ async def upload_from_url(
                     "count": len(serialized_visits),
                     "mileage": mileage
                 })
+            
+            # Fallback: treat as expense receipt PDF
+            logger.info(f"Treating PDF as expense receipt: {filename}")
+            amount = _extract_amount_from_pdf_bytes(content)
+            new_expense = Expense(
+                user_email=owner_email or "unknown@coloradocareassist.com",
+                amount=amount,
+                description=f"Receipt from {filename}",
+                category="Uncategorized",
+                receipt_url=url,
+                status="pending",
+                date=datetime.utcnow()
+            )
+            db.add(new_expense)
+            db.commit()
+            db.refresh(new_expense)
+            
+            return JSONResponse({
+                "success": True,
+                "filename": filename,
+                "type": "expense_receipt",
+                "expense": new_expense.to_dict()
+            })
         else:
             # Image handling: Expense Receipt OR Business Card
             if is_expense_user or is_expense_file:
                 logger.info(f"Processing expense receipt from {owner_email}: {filename}")
                 
                 # Use simple OCR to get total
-                import re
                 scan_result = business_card_scanner.scan_image(content)
                 raw_text = scan_result.get("raw_text", "")
-                
-                # Extract total amount
-                amounts = re.findall(r'\$\s?(\d+\.\d{2})', raw_text)
-                if not amounts:
-                    amounts = re.findall(r'(\d+\.\d{2})', raw_text)
-                
-                # Simple heuristic: largest amount is likely the total
-                amount = 0.0
-                if amounts:
-                    try:
-                        amount = max([float(a) for a in amounts])
-                    except ValueError:
-                        pass
+                amount = _extract_amount_from_text(raw_text)
                 
                 # Save expense
                 new_expense = Expense(
