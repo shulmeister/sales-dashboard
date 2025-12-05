@@ -2,11 +2,10 @@ import { formatRelative } from "date-fns";
 import { RecordContextProvider, useListContext } from "ra-core";
 import { type MouseEvent, useCallback } from "react";
 import { Link } from "react-router";
-import { ReferenceField } from "@/components/admin/reference-field";
-import { TextField } from "@/components/admin/text-field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Badge } from "@/components/ui/badge";
 
 import { Status } from "../misc/Status";
 import type { Contact } from "../types";
@@ -43,13 +42,20 @@ export const ContactListContent = () => {
 
   return (
     <div className="divide-y">
-      {contacts.map((contact) => (
-        <RecordContextProvider key={contact.id} value={contact}>
-          <Link
-            to={`/contacts/${contact.id}/show`}
-            className="flex flex-row gap-4 items-center px-4 py-2 hover:bg-muted transition-colors first:rounded-t-xl last:rounded-b-xl"
-            onClick={handleLinkClick}
-          >
+      {contacts.map((contact) => {
+        const lastActivity = contact.last_activity
+          ? new Date(contact.last_activity)
+          : contact.created_at
+            ? new Date(contact.created_at)
+            : undefined;
+
+        return (
+          <RecordContextProvider key={contact.id} value={contact}>
+            <Link
+              to={`/contacts/${contact.id}/show`}
+              className="flex flex-row gap-4 items-center px-4 py-2 hover:bg-muted transition-colors first:rounded-t-xl last:rounded-b-xl"
+              onClick={handleLinkClick}
+            >
             <Checkbox
               className="cursor-pointer"
               checked={selectedIds.includes(contact.id)}
@@ -58,44 +64,42 @@ export const ContactListContent = () => {
             <Avatar />
             <div className="flex-1 min-w-0">
               <div className="font-medium">
-                {`${contact.first_name} ${contact.last_name ?? ""}`}
+                {contact.name ||
+                  `${contact.first_name || ""} ${contact.last_name || ""}`.trim() ||
+                  "Unnamed contact"}
               </div>
-              <div className="text-sm text-muted-foreground">
-                {contact.title}
-                {contact.title && contact.company_id != null && " at "}
-                {contact.company_id != null && (
-                  <ReferenceField
-                    source="company_id"
-                    reference="companies"
-                    link={false}
-                  >
-                    <TextField source="name" />
-                  </ReferenceField>
-                )}
-                {contact.nb_tasks
-                  ? ` - ${contact.nb_tasks} task${
-                      contact.nb_tasks > 1 ? "s" : ""
-                    }`
-                  : ""}
-                &nbsp;&nbsp;
-                <TagsList />
+              <div className="text-sm text-muted-foreground flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                <span className="truncate">
+                  {[contact.company, contact.email, contact.phone]
+                    .filter(Boolean)
+                    .join(" • ")}
+                </span>
+                <div className="flex flex-wrap gap-1 items-center">
+                  {contact.contact_type && (
+                    <Badge variant="secondary" className="text-xs font-normal">
+                      {contact.contact_type}
+                    </Badge>
+                  )}
+                  <TagsList />
+                </div>
               </div>
             </div>
-            {contact.last_seen && (
+            {lastActivity && (
               <div className="text-right ml-4">
                 <div
                   className="text-sm text-muted-foreground"
-                  title={contact.last_seen}
+                  title={lastActivity.toISOString()}
                 >
                   {!isSmall && "last activity "}
-                  {formatRelative(contact.last_seen, now)}{" "}
+                  {formatRelative(lastActivity, now)}{" "}
                   <Status status={contact.status} />
                 </div>
               </div>
             )}
           </Link>
-        </RecordContextProvider>
-      ))}
+          </RecordContextProvider>
+        );
+      })}
 
       {contacts.length === 0 && (
         <div className="p-4">

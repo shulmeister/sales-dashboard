@@ -1,67 +1,56 @@
 import { endOfYesterday, startOfMonth, startOfWeek, subMonths } from "date-fns";
-import { CheckSquare, Clock, Tag, TrendingUp, Users } from "lucide-react";
-import { FilterLiveForm, useGetIdentity, useGetList } from "ra-core";
+import { FilterLiveForm } from "ra-core";
+import { Clock, Tag, TrendingUp, Users } from "lucide-react";
 import { ToggleFilterButton } from "@/components/admin/toggle-filter-button";
-import { SearchInput } from "@/components/admin/search-input";
 import { Badge } from "@/components/ui/badge";
 
 import { FilterCategory } from "../filters/FilterCategory";
 import { Status } from "../misc/Status";
-import { useConfigurationContext } from "../root/ConfigurationContext";
 
 export const ContactListFilter = () => {
-  const { noteStatuses } = useConfigurationContext();
-  const { identity } = useGetIdentity();
-  const { data } = useGetList("tags", {
-    pagination: { page: 1, perPage: 10 },
-    sort: { field: "name", order: "ASC" },
-  });
-
   return (
     <div className="w-52 min-w-52 order-first pt-0.75 flex flex-col gap-4">
-      <FilterLiveForm>
-        <SearchInput source="q" placeholder="Search name, company..." />
-      </FilterLiveForm>
+      <FilterLiveForm />
 
       <FilterCategory label="Last activity" icon={<Clock />}>
         <ToggleFilterButton
           className="w-full justify-between"
           label="Today"
           value={{
-            "last_seen@gte": endOfYesterday().toISOString(),
-            "last_seen@lte": undefined,
+            "last_activity@gte": endOfYesterday().toISOString(),
+            "last_activity@lte": undefined,
           }}
         />
         <ToggleFilterButton
           className="w-full justify-between"
           label="This week"
           value={{
-            "last_seen@gte": startOfWeek(new Date()).toISOString(),
-            "last_seen@lte": undefined,
+            "last_activity@gte": startOfWeek(new Date()).toISOString(),
+            "last_activity@lte": undefined,
           }}
         />
         <ToggleFilterButton
           className="w-full justify-between"
           label="Before this week"
           value={{
-            "last_seen@gte": undefined,
-            "last_seen@lte": startOfWeek(new Date()).toISOString(),
+            "last_activity@gte": undefined,
+            "last_activity@lte": startOfWeek(new Date()).toISOString(),
           }}
         />
         <ToggleFilterButton
           className="w-full justify-between"
           label="Before this month"
           value={{
-            "last_seen@gte": undefined,
-            "last_seen@lte": startOfMonth(new Date()).toISOString(),
+            "last_activity@gte": undefined,
+            "last_activity@lte": startOfMonth(new Date()).toISOString(),
           }}
         />
         <ToggleFilterButton
           className="w-full justify-between"
           label="Before last month"
           value={{
-            "last_seen@gte": undefined,
-            "last_seen@lte": subMonths(
+            "last_activity@gte": undefined,
+            "last_activity@lte": subMonths(
               startOfMonth(new Date()),
               1,
             ).toISOString(),
@@ -70,55 +59,53 @@ export const ContactListFilter = () => {
       </FilterCategory>
 
       <FilterCategory label="Status" icon={<TrendingUp />}>
-        {noteStatuses.map((status) => (
+        {["hot", "warm", "cold"].map((status) => (
           <ToggleFilterButton
-            key={status.value}
+            key={status}
             className="w-full justify-between"
             label={
               <span>
-                {status.label} <Status status={status.value} />
+                {status} <Status status={status} />
               </span>
             }
-            value={{ status: status.value }}
+            value={{ status }}
           />
         ))}
       </FilterCategory>
 
       <FilterCategory label="Tags" icon={<Tag />}>
-        {data &&
-          data.map((record) => (
-            <ToggleFilterButton
-              className="w-full justify-between"
-              key={record.id}
-              label={
-                <Badge
-                  variant="secondary"
-                  className="text-black text-xs font-normal cursor-pointer"
-                  style={{
-                    backgroundColor: record?.color,
-                  }}
-                >
-                  {record?.name}
-                </Badge>
-              }
-              value={{ "tags@cs": `{${record.id}}` }}
-            />
-          ))}
-      </FilterCategory>
-
-      <FilterCategory icon={<CheckSquare />} label="Tasks">
-        <ToggleFilterButton
-          className="w-full justify-between"
-          label={"With pending tasks"}
-          value={{ "nb_tasks@gt": 0 }}
-        />
+        {["Prospect", "Referral Source", "Client"].map((tag) => (
+          <ToggleFilterButton
+            className="w-full justify-between"
+            key={tag}
+            label={
+              <Badge
+                variant="secondary"
+                className="text-black text-xs font-normal cursor-pointer"
+              >
+                {tag}
+              </Badge>
+            }
+            value={{ tags: tag }}
+          />
+        ))}
       </FilterCategory>
 
       <FilterCategory icon={<Users />} label="Account Manager">
         <ToggleFilterButton
           className="w-full justify-between"
-          label={"Me"}
-          value={{ sales_id: identity?.id }}
+          label={"Prospects"}
+          value={{ contact_type: "prospect" }}
+        />
+        <ToggleFilterButton
+          className="w-full justify-between"
+          label={"Referrals"}
+          value={{ contact_type: "referral" }}
+        />
+        <ToggleFilterButton
+          className="w-full justify-between"
+          label={"Clients"}
+          value={{ contact_type: "client" }}
         />
       </FilterCategory>
     </div>

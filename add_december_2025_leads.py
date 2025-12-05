@@ -15,6 +15,7 @@ and only creates missing tasks.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -22,6 +23,7 @@ from sqlalchemy import func  # type: ignore
 
 from database import db_manager
 from models import (
+    Contact,
     Lead,
     LeadActivity,
     LeadTask,
@@ -1148,6 +1150,165 @@ def ensure_referral_source(session, payload: Dict[str, Any]) -> bool:
     return True
 
 
+def _find_contact(session, name: Optional[str], email: Optional[str]) -> Optional[Contact]:
+    """Find an existing contact by email (preferred) or name."""
+    if email:
+        contact = (
+            session.query(Contact)
+            .filter(func.lower(Contact.email) == email.lower())
+            .first()
+        )
+        if contact:
+            return contact
+    if name:
+        return (
+            session.query(Contact)
+            .filter(func.lower(Contact.name) == name.lower())
+            .first()
+        )
+    return None
+
+
+def _serialize_tags(tags: List[str]) -> str:
+    return json.dumps(tags)
+
+
+def _lead_priority_to_status(priority: Optional[str]) -> str:
+    mapping = {"high": "hot", "medium": "warm", "low": "cold"}
+    if not priority:
+        return "warm"
+    return mapping.get(priority.lower(), "warm")
+
+
+def _referral_status_to_contact_status(status: Optional[str]) -> str:
+    mapping = {"incoming": "cold", "ongoing": "warm", "active": "hot"}
+    if not status:
+        return "warm"
+    return mapping.get(status.lower(), "warm")
+
+
+def ensure_contact_from_lead(session, lead: Lead) -> None:
+    """Create or update a Contact record for the given lead."""
+    contact_name = lead.contact_name or lead.name
+    contact = _find_contact(session, contact_name, lead.email)
+    created_at = lead.created_at or datetime.now(timezone.utc)
+    last_activity = lead.updated_at or lead.created_at or created_at
+    tags = ["Prospect"]
+    status = _lead_priority_to_status(lead.priority)
+
+    if contact:
+        updated = False
+        for field, value in [
+            ("name", contact_name),
+            ("email", lead.email),
+            ("phone", lead.phone),
+            ("address", lead.address or lead.city),
+            ("notes", lead.notes),
+            ("source", lead.source),
+        ]:
+            if value and getattr(contact, field) != value:
+                setattr(contact, field, value)
+                updated = True
+
+        if contact.contact_type != "prospect":
+            contact.contact_type = "prospect"
+            updated = True
+        if contact.status != status:
+            contact.status = status
+            updated = True
+
+        if contact.tags != _serialize_tags(tags):
+            contact.tags = _serialize_tags(tags)
+            updated = True
+
+        if not contact.last_activity or contact.last_activity < last_activity:
+            contact.last_activity = last_activity
+            updated = True
+
+        if updated:
+            contact.updated_at = datetime.now(timezone.utc)
+            session.add(contact)
+        return
+
+    contact = Contact(
+        name=contact_name,
+        company=None,
+        email=lead.email,
+        phone=lead.phone,
+        address=lead.address or lead.city,
+        notes=lead.notes,
+        contact_type="prospect",
+        status=status,
+        tags=_serialize_tags(tags),
+        last_activity=last_activity,
+        source=lead.source,
+        created_at=created_at,
+        updated_at=datetime.now(timezone.utc),
+    )
+    session.add(contact)
+
+
+def ensure_contact_from_referral(session, referral: ReferralSource) -> None:
+    """Create or update a Contact record for the given referral source."""
+    contact = _find_contact(session, referral.name, referral.email)
+    created_at = referral.created_at or datetime.now(timezone.utc)
+    last_activity = referral.updated_at or referral.created_at or created_at
+    tags = ["Referral Source"]
+    status = _referral_status_to_contact_status(referral.status)
+
+    if contact:
+        updated = False
+        for field, value in [
+            ("name", referral.name),
+            ("company", referral.organization),
+            ("email", referral.email),
+            ("phone", referral.phone),
+            ("address", getattr(referral, "address", None)),
+            ("notes", referral.notes),
+            ("source", referral.source_type),
+        ]:
+            if value and getattr(contact, field) != value:
+                setattr(contact, field, value)
+                updated = True
+
+        if contact.contact_type != "referral":
+            contact.contact_type = "referral"
+            updated = True
+        if contact.status != status:
+            contact.status = status
+            updated = True
+
+        if contact.tags != _serialize_tags(tags):
+            contact.tags = _serialize_tags(tags)
+            updated = True
+
+        if not contact.last_activity or contact.last_activity < last_activity:
+            contact.last_activity = last_activity
+            updated = True
+
+        if updated:
+            contact.updated_at = datetime.now(timezone.utc)
+            session.add(contact)
+        return
+
+    contact = Contact(
+        name=referral.name,
+        company=referral.organization,
+        email=referral.email,
+        phone=referral.phone,
+        address=getattr(referral, "address", None),
+        notes=referral.notes,
+        contact_type="referral",
+        status=status,
+        tags=_serialize_tags(tags),
+        last_activity=last_activity,
+        source=referral.source_type,
+        created_at=created_at,
+        updated_at=datetime.now(timezone.utc),
+    )
+    session.add(contact)
+
+
 def main() -> None:
     session = db_manager.get_session()
     created = 0
@@ -1160,6 +1321,7 @@ def main() -> None:
             stage = ensure_stage(session, stage_name)
             lead, was_created = ensure_lead(session, stage, payload)
             ensure_tasks(session, lead, payload)
+            ensure_contact_from_lead(session, lead)
             if was_created:
                 created += 1
                 print(f"✅ Created lead '{lead.name}' (ID {lead.id})")
@@ -1169,6 +1331,14 @@ def main() -> None:
 
         for payload in REFERRAL_SOURCES:
             created_flag = ensure_referral_source(session, payload)
+            # Refresh referral object to capture created_at/updated_at
+            referral = (
+                session.query(ReferralSource)
+                .filter(func.lower(ReferralSource.name) == payload["name"].lower())
+                .first()
+            )
+            if referral:
+                ensure_contact_from_referral(session, referral)
             if created_flag:
                 ref_created += 1
                 print(f"✅ Added referral source '{payload['name']}'")
@@ -1192,4 +1362,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

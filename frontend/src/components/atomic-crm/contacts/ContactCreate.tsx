@@ -12,9 +12,9 @@ export const ContactCreate = () => {
       redirect="show"
       transform={(data: Contact) => ({
         ...data,
-        first_seen: new Date().toISOString(),
-        last_seen: new Date().toISOString(),
-        tags: [],
+        created_at: new Date().toISOString(),
+        last_activity: new Date().toISOString(),
+        tags: data.tags || [],
       })}
     >
       <div className="mt-2 flex lg:mr-72">

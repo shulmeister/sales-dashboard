@@ -23,6 +23,7 @@ import { getCompanyAvatar } from "../commons/getCompanyAvatar";
 import { getContactAvatar } from "../commons/getContactAvatar";
 import { getIsInitialized } from "./authProvider";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase";
+import { createContactsRestDataProvider } from "../rest/contactsDataProvider";
 
 const baseDataProvider = supabaseDataProvider({
   instanceUrl: SUPABASE_URL,
@@ -30,6 +31,8 @@ const baseDataProvider = supabaseDataProvider({
   supabaseClient: supabase,
   sortOrder: "asc,desc.nullslast" as any,
 });
+
+const contactsRestProvider = createContactsRestDataProvider();
 
 const processCompanyLogo = async (params: any) => {
   let logo = params.data.logo;
@@ -79,7 +82,7 @@ const dataProviderWithCustomMethods = {
       return baseDataProvider.getList("companies_summary", params);
     }
     if (resource === "contacts") {
-      return baseDataProvider.getList("contacts_summary", params);
+      return contactsRestProvider.getList("contacts", params);
     }
 
     return baseDataProvider.getList(resource, params);
@@ -89,10 +92,28 @@ const dataProviderWithCustomMethods = {
       return baseDataProvider.getOne("companies_summary", params);
     }
     if (resource === "contacts") {
-      return baseDataProvider.getOne("contacts_summary", params);
+      return contactsRestProvider.getOne("contacts", params);
     }
 
     return baseDataProvider.getOne(resource, params);
+  },
+  async create(resource: string, params: any) {
+    if (resource === "contacts") {
+      return contactsRestProvider.create("contacts", params);
+    }
+    return baseDataProvider.create(resource, params);
+  },
+  async update(resource: string, params: any) {
+    if (resource === "contacts") {
+      return contactsRestProvider.update("contacts", params);
+    }
+    return baseDataProvider.update(resource, params);
+  },
+  async delete(resource: string, params: any) {
+    if (resource === "contacts") {
+      return contactsRestProvider.delete("contacts", params);
+    }
+    return baseDataProvider.delete(resource, params);
   },
 
   async signUp({ email, password, first_name, last_name }: SignUpData) {

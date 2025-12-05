@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 import os
 import json
 from typing import List, Dict, Any, Optional
@@ -31,6 +32,49 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 # Load environment variables
 load_dotenv()
+
+
+def ensure_contact_schema():
+    """Add new contact columns if they are missing (works for Postgres + SQLite)."""
+    engine = db_manager.engine
+    if not engine:
+        return
+
+    dialect = engine.dialect.name
+
+    def column_exists(conn, column_name: str) -> bool:
+        if dialect == "sqlite":
+            rows = conn.execute(text(f"PRAGMA table_info(contacts)")).fetchall()
+            return any(row[1] == column_name for row in rows)
+        query = text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='contacts' AND column_name=:column"
+        )
+        row = conn.execute(query, {"column": column_name}).fetchone()
+        return row is not None
+
+    def add_column(conn, statement: str):
+        if dialect == "sqlite":
+            conn.execute(text(f"ALTER TABLE contacts ADD COLUMN {statement}"))
+        else:
+            conn.execute(text(f"ALTER TABLE contacts ADD COLUMN IF NOT EXISTS {statement}"))
+
+    with engine.connect() as conn:
+        if not column_exists(conn, "status"):
+            add_column(conn, "status VARCHAR(50)")
+        if not column_exists(conn, "contact_type"):
+            add_column(conn, "contact_type VARCHAR(50)")
+        if not column_exists(conn, "tags"):
+            add_column(conn, "tags TEXT")
+        if not column_exists(conn, "last_activity"):
+            add_column(conn, "last_activity TIMESTAMP")
+        if not column_exists(conn, "account_manager"):
+            add_column(conn, "account_manager VARCHAR(255)")
+        if not column_exists(conn, "source"):
+            add_column(conn, "source VARCHAR(255)")
+
+
+ensure_contact_schema()
 
 # Portal SSO configuration (shared secret with main portal)
 PORTAL_SECRET = os.getenv("PORTAL_SECRET", "colorado-careassist-portal-2025")
@@ -864,14 +908,260 @@ async def get_sales_bonuses(db: Session = Depends(get_db), current_user: Dict[st
         logger.error(f"Error getting sales bonuses: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/contacts")
-async def get_contacts(db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Get all saved contacts (from database - synced from Mailchimp)"""
+def _parse_range(range_param: Optional[str], default_per_page: int = 50) -> tuple[int, int]:
+    """Parse pagination range query parameter into start/end indexes."""
+    if not range_param:
+        return 0, default_per_page - 1
     try:
-        contacts = db.query(Contact).order_by(Contact.created_at.desc()).all()
-        return JSONResponse([contact.to_dict() for contact in contacts])
+        start_str, end_str = range_param.split(",")
+        start = int(start_str)
+        end = int(end_str)
+        if start < 0 or end < start:
+            raise ValueError("Invalid range values")
+        return start, end
+    except Exception:
+        logger.warning("Invalid range parameter '%s', using defaults", range_param)
+        return 0, default_per_page - 1
+
+
+def _apply_contact_filters(
+    query,
+    tags: Optional[List[str]],
+    status: Optional[str],
+    contact_type: Optional[str],
+    last_activity_gte: Optional[Any] = None,
+    last_activity_lte: Optional[Any] = None,
+):
+    """Apply simple filters to the contact query."""
+    if status:
+        query = query.filter(Contact.status == status)
+    if contact_type:
+        query = query.filter(Contact.contact_type == contact_type)
+    if tags:
+        for tag in tags:
+            tag_value = tag.strip()
+            if not tag_value:
+                continue
+            query = query.filter(Contact.tags.ilike(f'%{tag_value}%'))
+    if last_activity_gte:
+        dt = _coerce_datetime(last_activity_gte)
+        if dt:
+            query = query.filter(Contact.last_activity >= dt)
+    if last_activity_lte:
+        dt = _coerce_datetime(last_activity_lte)
+        if dt:
+            query = query.filter(Contact.last_activity <= dt)
+    return query
+
+
+def _contact_order_clause(sort_field: Optional[str], order: Optional[str]):
+    """Return an order_by clause for contacts."""
+    sort_map = {
+        "last_activity": Contact.last_activity,
+        "created_at": Contact.created_at,
+        "name": Contact.name,
+    }
+    sort_column = sort_map.get((sort_field or "").lower(), Contact.created_at)
+    direction = (order or "DESC").upper()
+    return sort_column.desc() if direction == "DESC" else sort_column.asc()
+
+
+def _coerce_datetime(value: Optional[Any], default: Optional[datetime] = None) -> Optional[datetime]:
+    """Convert string payload values to datetime when needed."""
+    if value is None:
+        return default
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(value)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except Exception:
+        return default
+
+
+def _serialize_tags(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value)
+    except Exception:
+        return None
+
+
+@app.get("/api/contacts")
+async def get_contacts(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    tags: Optional[List[str]] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    contact_type: Optional[str] = Query(default=None),
+    sort: Optional[str] = Query(default=None),
+    order: Optional[str] = Query(default=None),
+    range: Optional[str] = Query(default=None),
+    last_activity_gte: Optional[str] = Query(default=None, alias="last_activity_gte"),
+    last_activity_lte: Optional[str] = Query(default=None, alias="last_activity_lte"),
+):
+    """List contacts with optional filters and sorting."""
+    try:
+        # Also support Range header if provided
+        range_header = request.headers.get("Range")
+        range_param = range or (range_header.split("=")[1] if range_header else None)
+        start, end = _parse_range(range_param)
+
+        query = db.query(Contact)
+        query = _apply_contact_filters(
+            query,
+            tags,
+            status,
+            contact_type,
+            last_activity_gte,
+            last_activity_lte,
+        )
+        total = query.count()
+
+        contacts = (
+            query.order_by(_contact_order_clause(sort, order))
+            .offset(start)
+            .limit(end - start + 1)
+            .all()
+        )
+
+        content_range = f"contacts {start}-{start + len(contacts) - 1 if contacts else start}/{total}"
+        headers = {
+            "Content-Range": content_range,
+            "Access-Control-Expose-Headers": "Content-Range",
+            "X-Total-Count": str(total),
+        }
+
+        return JSONResponse(
+            {"data": [contact.to_dict() for contact in contacts], "total": total},
+            headers=headers,
+        )
     except Exception as e:
         logger.error(f"Error fetching contacts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/contacts/{contact_id}")
+async def get_contact(
+    contact_id: int,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Fetch a single contact by ID."""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return JSONResponse(contact.to_dict())
+
+
+@app.post("/api/contacts")
+async def create_contact(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Create a new contact."""
+    try:
+        payload = await request.json()
+        now = datetime.now(timezone.utc)
+        contact = Contact(
+            name=payload.get("name"),
+            company=payload.get("company"),
+            title=payload.get("title"),
+            phone=payload.get("phone"),
+            email=payload.get("email"),
+            address=payload.get("address"),
+            website=payload.get("website"),
+            notes=payload.get("notes"),
+            scanned_date=_coerce_datetime(payload.get("scanned_date"), now),
+            created_at=_coerce_datetime(payload.get("created_at"), now),
+            updated_at=now,
+            status=payload.get("status"),
+            contact_type=payload.get("contact_type"),
+            tags=_serialize_tags(payload.get("tags")),
+            last_activity=_coerce_datetime(payload.get("last_activity"), now),
+            account_manager=payload.get("account_manager"),
+            source=payload.get("source"),
+        )
+        db.add(contact)
+        db.commit()
+        db.refresh(contact)
+        return JSONResponse(contact.to_dict(), status_code=status.HTTP_201_CREATED)
+    except Exception as e:
+        logger.error(f"Error creating contact: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/contacts/{contact_id}")
+async def update_contact(
+    contact_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Update an existing contact."""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    try:
+        payload = await request.json()
+        for field in [
+            "name",
+            "company",
+            "title",
+            "phone",
+            "email",
+            "address",
+            "website",
+            "notes",
+            "status",
+            "contact_type",
+            "account_manager",
+            "source",
+        ]:
+            if field in payload:
+                setattr(contact, field, payload.get(field))
+
+        if "tags" in payload:
+            contact.tags = _serialize_tags(payload.get("tags"))
+        if "last_activity" in payload:
+            contact.last_activity = _coerce_datetime(payload.get("last_activity"), contact.last_activity)
+
+        contact.updated_at = datetime.now(timezone.utc)
+
+        db.add(contact)
+        db.commit()
+        db.refresh(contact)
+        return JSONResponse(contact.to_dict())
+    except Exception as e:
+        logger.error(f"Error updating contact: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/contacts/{contact_id}")
+async def delete_contact(
+    contact_id: int,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Delete a contact."""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    try:
+        db.delete(contact)
+        db.commit()
+        return JSONResponse({"success": True})
+    except Exception as e:
+        logger.error(f"Error deleting contact: {str(e)}", exc_info=True)
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/sync-mailchimp-contacts")

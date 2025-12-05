@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
+import json
 
 Base = declarative_base()
 
@@ -72,8 +73,20 @@ class Contact(Base):
     scanned_date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    status = Column(String(50), nullable=True)
+    contact_type = Column(String(50), nullable=True)  # prospect, referral, client
+    tags = Column(Text, nullable=True)  # JSON-encoded string list
+    last_activity = Column(DateTime, nullable=True)
+    account_manager = Column(String(255), nullable=True)
+    source = Column(String(255), nullable=True)
     
     def to_dict(self):
+        tag_list = []
+        if self.tags:
+            try:
+                tag_list = json.loads(self.tags)
+            except json.JSONDecodeError:
+                tag_list = [tag.strip() for tag in self.tags.split(",") if tag.strip()]
         return {
             "id": self.id,
             "name": self.name,
@@ -85,7 +98,14 @@ class Contact(Base):
             "website": self.website,
             "notes": self.notes,
             "scanned_date": self.scanned_date.isoformat() if self.scanned_date else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "status": self.status,
+            "contact_type": self.contact_type,
+            "tags": tag_list,
+            "last_activity": self.last_activity.isoformat() if self.last_activity else None,
+            "account_manager": self.account_manager,
+            "source": self.source,
         }
 
 class FinancialEntry(Base):
