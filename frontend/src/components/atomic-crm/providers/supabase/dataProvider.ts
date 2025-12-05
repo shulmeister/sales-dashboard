@@ -80,6 +80,9 @@ async function processContactAvatar(
 const dataProviderWithCustomMethods = {
   ...baseDataProvider,
   async getList(resource: string, params: GetListParams) {
+    if (resource === "tasks") {
+      return { data: [], total: 0 };
+    }
     if (resource === "companies") {
       return baseDataProvider.getList("companies_summary", params);
     }
@@ -93,6 +96,9 @@ const dataProviderWithCustomMethods = {
     return baseDataProvider.getList(resource, params);
   },
   async getOne(resource: string, params: any) {
+    if (resource === "tasks") {
+      throw new Error("tasks resource is disabled");
+    }
     if (resource === "companies") {
       return baseDataProvider.getOne("companies_summary", params);
     }
@@ -390,6 +396,9 @@ const applyFullTextSearch = (columns: string[]) => (params: GetListParams) => {
 };
 
 const uploadToBucket = async (fi: RAFile) => {
+  // Supabase storage disabled — return file as-is
+  return fi;
+
   if (!fi.src.startsWith("blob:") && !fi.src.startsWith("data:")) {
     // Sign URL check if path exists in the bucket
     if (fi.path) {
